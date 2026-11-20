@@ -22,6 +22,20 @@ vi.mock('./HeaderBands', async () => {
   }
 })
 
+const barCommits = vi.hoisted(() => ({ count: 0 }))
+
+// Profiler around the real EventBar: onRender fires only when a bar's subtree commits.
+vi.mock('./EventBar', async () => {
+  const actual = await vi.importActual<typeof import('./EventBar')>('./EventBar')
+  return {
+    EventBar: (props: React.ComponentProps<typeof actual.EventBar>) => (
+      <Profiler id="bar" onRender={() => { barCommits.count += 1 }}>
+        <actual.EventBar {...props} />
+      </Profiler>
+    ),
+  }
+})
+
 function seeded() {
   const now = new Date()
   let p = addTrack(createProject('Wuthering Waves'), 'Banners')
@@ -99,6 +113,30 @@ test('now-line moves right as time passes within a day', () => {
 test('renders one empty track-row slot per track for event bars', () => {
   render(<Timeline project={seeded()} />)
   expect(screen.getAllByTestId('track-row')).toHaveLength(2)
+})
+
+test('event bars render inside their own track row only', () => {
+  render(<Timeline project={seeded()} />)
+  const [banners, combat] = screen.getAllByTestId('track-row')
+  expect(banners.querySelectorAll('.event-bar')).toHaveLength(1)
+  expect(banners).toHaveTextContent('Lily Banner')
+  expect(combat.querySelectorAll('.event-bar')).toHaveLength(0)
+})
+
+test('event bars do not re-render on the per-second tick but do on the minute tick', () => {
+  vi.useFakeTimers()
+  try {
+    vi.setSystemTime(new Date('2026-06-15T12:00:00+01:00'))
+    render(<Timeline project={seeded()} />)
+    const afterMount = barCommits.count
+    expect(afterMount).toBeGreaterThan(0)
+    act(() => { vi.advanceTimersByTime(30_000) })
+    expect(barCommits.count).toBe(afterMount)
+    act(() => { vi.advanceTimersByTime(30_000) })
+    expect(barCommits.count).toBeGreaterThan(afterMount)
+  } finally {
+    vi.useRealTimers()
+  }
 })
 
 test('the add button reports its track id', () => {

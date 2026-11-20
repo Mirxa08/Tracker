@@ -11,8 +11,8 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/setupTests.ts'],
-    // theme.test.ts reads theme.css as text; vitest otherwise blanks CSS imports.
-    css: { include: [/theme\.css/] },
+    // theme.test.ts and zorder.test.ts read these stylesheets as text; vitest otherwise blanks CSS imports.
+    css: { include: [/(theme|timeline|event-bar)\.css/] },
   },
 })
 

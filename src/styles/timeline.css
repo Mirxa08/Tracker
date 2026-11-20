@@ -3,6 +3,14 @@
  * month labels to the left) sticks against this element, and nothing inside it sets
  * overflow, so artwork that bleeds past a row box is never clipped by an ancestor.
  */
+/*
+ * Stacking scale, lowest to highest (gaps left so a layer can be inserted without renumbering):
+ *   event bars 10  <  now-line 20  <  header bands 30  <  track gutter 40  <  corner 50
+ * The bands, gutter and corner are sticky and must occlude whatever scrolls beneath them, so
+ * they sit above the content layers (bars, now-line) and are never painted over by them. The
+ * corner is on top because it overlaps both the gutter and the bands.
+ * Bars live in .event-bar (event-bar.css) at z-index 10.
+ */
 .timeline__viewport {
   overflow: auto;
   max-height: calc(100vh - var(--viewport-offset, 96px));
@@ -21,7 +29,7 @@
 .timeline__gutter {
   position: sticky;
   left: 0;
-  z-index: 3;
+  z-index: 40;
   background: var(--bg);
   border-right: 1px solid var(--line);
 }
@@ -29,14 +37,14 @@
 .timeline__corner {
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: 50;
   height: var(--header-height);
   background: var(--bg);
 }
 
 .timeline__canvas { position: relative; }
 
-.bands { position: sticky; top: 0; z-index: 2; background: var(--bg); }
+.bands { position: sticky; top: 0; z-index: 30; background: var(--bg); }
 
 .bands__months { position: relative; height: 28px; }
 
@@ -102,7 +110,7 @@
   bottom: 0;
   width: 1px;
   background: var(--now);
-  z-index: 4;
+  z-index: 20;
   pointer-events: none;
 }
 

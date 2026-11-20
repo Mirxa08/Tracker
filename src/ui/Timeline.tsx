@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
-import { projectBounds } from '../domain/project'
+import { eventsForTrack, projectBounds } from '../domain/project'
 import type { Project } from '../domain/schema'
 import { DAY_WIDTH, dayColumns, monthSpans, xForTime } from '../domain/time'
+import { EventBar } from './EventBar'
 import { HeaderBands } from './HeaderBands'
 import { NowLine } from './NowLine'
 import { TrackGutter } from './TrackGutter'
@@ -17,9 +18,11 @@ function NowMarker({ viewStart }: { viewStart: Date }) {
 export function Timeline({
   project,
   onAddToTrack = () => {},
+  onSelectEvent = () => {},
 }: {
   project: Project
   onAddToTrack?: (trackId: string) => void
+  onSelectEvent?: (eventId: string) => void
 }) {
   // Coarse clock: only needed to roll the view over at midnight. The second-by-second
   // clock lives in NowMarker so bars and day columns are not re-rendered every tick.
@@ -45,7 +48,11 @@ export function Timeline({
             <HeaderBands days={days} months={months} />
             <NowMarker viewStart={bounds.start} />
             {project.tracks.map((track) => (
-              <div key={track.id} className="track-row" data-testid="track-row" />
+              <div key={track.id} className="track-row" data-testid="track-row">
+                {eventsForTrack(project, track.id).map((event) => (
+                  <EventBar key={event.id} event={event} viewStart={bounds.start} now={today} onSelect={onSelectEvent} />
+                ))}
+              </div>
             ))}
           </div>
         </div>

@@ -1,0 +1,63 @@
+.event-bar {
+  position: absolute;
+  z-index: 10; /* below now-line, bands, gutter: see timeline.css */
+  top: 0;
+  height: var(--row-height);
+  display: flex;
+  align-items: center;
+  border: 0;
+  border-radius: 6px;
+  padding: 0 10px;
+  color: #fff;
+  font: inherit;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  min-width: 8px;
+}
+
+.event-bar--ended { opacity: 0.55; }
+
+/* Not yet started: full strength, lighter fill (a white wash under the artwork and text). */
+.event-bar--upcoming::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgb(255 255 255 / 28%);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.event-bar__name {
+  position: relative;
+  z-index: 2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 45%);
+}
+
+.event-bar__image {
+  position: absolute;
+  inset: 0 0 0 auto;
+  height: 100%;
+  width: 55%;
+  object-fit: cover;
+  z-index: 1;
+  mask-image: linear-gradient(to right, transparent, #000 60%);
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 60%);
+  pointer-events: none;
+}
+
+.event-bar__remaining {
+  position: absolute;
+  right: 6px;
+  z-index: 3;
+  background: var(--surface);
+  color: var(--fg);
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
