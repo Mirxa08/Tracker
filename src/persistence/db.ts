@@ -42,12 +42,19 @@ export function openDb(): Promise<IDBPDatabase<TrackerDB>> {
         if (!db.objectStoreNames.contains('projects')) db.createObjectStore('projects', { keyPath: 'id' })
         if (!db.objectStoreNames.contains('images')) db.createObjectStore('images', { keyPath: 'id' })
       },
+      terminated() {
+        dbPromise = null
+      },
+    }).catch((error: unknown) => {
+      dbPromise = null
+      throw error
     })
   }
   return dbPromise
 }
 
 function wrapWriteError(error: unknown): never {
+  if (error instanceof StorageError) throw error
   const isQuota =
     error instanceof DOMException &&
     (error.name === 'QuotaExceededError' || error.name === 'NS_ERROR_DOM_QUOTA_REACHED')

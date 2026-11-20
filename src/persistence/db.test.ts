@@ -1,13 +1,14 @@
-import { beforeEach } from 'vitest'
+import { beforeEach, vi } from 'vitest'
 import { createProject } from '../domain/project'
 import {
   listProjects, getProject, putProject, deleteProject,
-  putImage, getImage, deleteImage, isStorageAvailable,
+  putImage, getImage, deleteImage, isStorageAvailable, openDb,
 } from './db'
 
 beforeEach(async () => {
-  for (const p of await listProjects()) await deleteProject(p.id)
-  await deleteImage('img_1')
+  const db = await openDb()
+  await db.clear('projects')
+  await db.clear('images')
 })
 
 test('reports storage as available under fake-indexeddb', () => {
@@ -34,9 +35,12 @@ test('putProject overwrites an existing record rather than duplicating', async (
 })
 
 test('listProjects returns the most recently updated first', async () => {
-  await putProject({ ...createProject('Older'), updatedAt: '2026-11-01T00:00:00.000Z' })
-  await putProject({ ...createProject('Newer'), updatedAt: '2026-11-19T00:00:00.000Z' })
-  expect((await listProjects()).map((p) => p.name)).toEqual(['Newer', 'Older'])
+  // Ids are deliberately in the opposite order to the update times, so the
+  // store's key order alone would not produce the sorted result.
+  await putProject({ ...createProject('Older'), id: 'p_a', updatedAt: '2026-11-01T00:00:00.000Z' })
+  await putProject({ ...createProject('Middle'), id: 'p_c', updatedAt: '2026-11-10T00:00:00.000Z' })
+  await putProject({ ...createProject('Newer'), id: 'p_b', updatedAt: '2026-11-19T00:00:00.000Z' })
+  expect((await listProjects()).map((p) => p.name)).toEqual(['Newer', 'Middle', 'Older'])
 })
 
 test('deleteProject removes it', async () => {
@@ -54,4 +58,55 @@ test('stores and reads back an image record', async () => {
   expect(found?.blob.size).toBe(blob.size)
   await deleteImage('img_1')
   expect(await getImage('img_1')).toBeUndefined()
+})
+
+test('a failed open does not poison later calls', async () => {
+  // A fresh copy of the module has an empty connection cache, so its first open is the one we fail.
+  const actual = await vi.importActual<typeof import('idb')>('idb')
+  let failNext = true
+  vi.doMock('idb', () => ({
+    ...actual,
+    openDB: (...args: Parameters<typeof actual.openDB>) => {
+      if (failNext) {
+        failNext = false
+        return Promise.reject(new Error('simulated'))
+      }
+      return actual.openDB(...args)
+    },
+  }))
+  vi.resetModules()
+  const fresh = await import('./db')
+  await expect(fresh.listProjects()).rejects.toThrow('simulated')
+  expect(await fresh.listProjects()).toEqual([])
+  vi.doUnmock('idb')
+})
+
+test('a terminated connection is reopened on the next call', async () => {
+  // fake-indexeddb rejects synthetic close events, so drive the terminated() callback directly
+  // and check that the next call opens a new connection rather than reusing the dead one.
+  const actual = await vi.importActual<typeof import('idb')>('idb')
+  const opened: Array<Parameters<typeof actual.openDB>[2]> = []
+  vi.doMock('idb', () => ({
+    ...actual,
+    openDB: (...args: Parameters<typeof actual.openDB>) => {
+      opened.push(args[2])
+      return actual.openDB(...args)
+    },
+  }))
+  vi.resetModules()
+  const fresh = await import('./db')
+  await fresh.listProjects()
+  opened[0]?.terminated?.()
+  await fresh.listProjects()
+  expect(opened).toHaveLength(2)
+  vi.doUnmock('idb')
+})
+
+test('the no-storage message survives a write attempt', async () => {
+  vi.stubGlobal('indexedDB', undefined)
+  try {
+    await expect(putProject(createProject('Blocked'))).rejects.toThrow('This browser has no usable storage')
+  } finally {
+    vi.unstubAllGlobals()
+  }
 })
