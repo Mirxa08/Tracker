@@ -15,3 +15,9 @@ const cloneKeepingBlobs = (value: unknown): unknown => {
   return nativeStructuredClone(value)
 }
 globalThis.structuredClone = cloneKeepingBlobs as typeof structuredClone
+
+if (typeof URL.createObjectURL !== 'function') {
+  let counter = 0
+  URL.createObjectURL = () => `blob:tracker/${(counter += 1)}`
+  URL.revokeObjectURL = () => {}
+}
