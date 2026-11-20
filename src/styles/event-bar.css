@@ -61,3 +61,14 @@
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
+
+.event-bar__handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  z-index: 4;
+  cursor: ew-resize;
+}
+.event-bar__handle--start { left: 0; }
+.event-bar__handle--end { right: 0; }

@@ -1,5 +1,7 @@
+import { updateEvent } from './domain/project'
 import { StoreProvider, useStore } from './state/StoreProvider'
 import { currentProject } from './state/reducer'
+import { EventDetail } from './ui/EventDetail'
 import { EventDialog, applyDraft } from './ui/EventDialog'
 import { Timeline } from './ui/Timeline'
 import './styles/theme.css'
@@ -7,13 +9,41 @@ import './styles/theme.css'
 function Workspace() {
   const { state, dispatch } = useStore()
   const project = currentProject(state)
+  const selected = project?.events.find((e) => e.id === state.selectedEventId) ?? null
   return (
     <>
       <h1>Tracker</h1>
       {state.error && <p role="alert">{state.error}</p>}
+      {state.undo && (
+        <p role="status">
+          {state.undo.label}
+          <button type="button" onClick={() => dispatch({ type: 'undo' })}>Undo</button>
+        </p>
+      )}
       {project
-        ? <Timeline project={project} onAddToTrack={(trackId) => dispatch({ type: 'openAdd', trackId })} />
+        ? (
+          <Timeline
+            project={project}
+            onAddToTrack={(trackId) => dispatch({ type: 'openAdd', trackId })}
+            onSelectEvent={(eventId) => dispatch({ type: 'selectEvent', eventId })}
+            onChangeDates={(eventId, dates) => {
+              try {
+                dispatch({ type: 'applyProject', project: updateEvent(project, eventId, dates) })
+              } catch (error) {
+                dispatch({ type: 'error', message: error instanceof Error ? error.message : 'That event could not be moved.' })
+              }
+            }}
+          />
+        )
         : <p>Loading…</p>}
+      {selected && !state.dialog && (
+        <EventDetail
+          event={selected}
+          onEdit={(eventId) => dispatch({ type: 'openEdit', eventId })}
+          onDelete={(eventId) => dispatch({ type: 'deleteEvent', eventId })}
+          onClose={() => dispatch({ type: 'selectEvent', eventId: null })}
+        />
+      )}
       {state.dialog && project && (
         <EventDialog
           project={project}

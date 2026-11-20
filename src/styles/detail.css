@@ -1,0 +1,26 @@
+.detail {
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: min(360px, 100%);
+  background: var(--bg);
+  border-left: 1px solid var(--line);
+  padding: 16px;
+  overflow: auto;
+  /* Above the timeline's whole scale (bars 10 ... corner 50, see timeline.css): the panel
+     overlays the timeline, so anything lower is painted over by the sticky bands and bars. */
+  z-index: 60;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.detail__header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.detail__header h2 { margin: 0; font-size: 18px; }
+.detail__range { margin: 0; color: var(--muted); font-size: 13px; }
+.detail__image { width: 100%; border-radius: 8px; }
+.detail__notes { width: 100%; border-collapse: collapse; font-size: 13px; }
+.detail__notes th, .detail__notes td { border: 1px solid var(--line); padding: 4px 6px; text-align: left; }
+.detail__empty { color: var(--muted); font-size: 13px; }
+.detail__actions { display: flex; gap: 8px; }

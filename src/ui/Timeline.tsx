@@ -15,14 +15,19 @@ function NowMarker({ viewStart }: { viewStart: Date }) {
   return <NowLine x={xForTime(now, viewStart)} now={now} />
 }
 
+// Hoisted: a fresh default per render would hand every bar a new prop.
+const noop = () => {}
+
 export function Timeline({
   project,
-  onAddToTrack = () => {},
-  onSelectEvent = () => {},
+  onAddToTrack = noop,
+  onSelectEvent = noop,
+  onChangeDates,
 }: {
   project: Project
   onAddToTrack?: (trackId: string) => void
   onSelectEvent?: (eventId: string) => void
+  onChangeDates?: (eventId: string, dates: { start: string; end: string }) => void
 }) {
   // Coarse clock: only needed to roll the view over at midnight. The second-by-second
   // clock lives in NowMarker so bars and day columns are not re-rendered every tick.
@@ -50,7 +55,14 @@ export function Timeline({
             {project.tracks.map((track) => (
               <div key={track.id} className="track-row" data-testid="track-row">
                 {eventsForTrack(project, track.id).map((event) => (
-                  <EventBar key={event.id} event={event} viewStart={bounds.start} now={today} onSelect={onSelectEvent} />
+                  <EventBar
+                    key={event.id}
+                    event={event}
+                    viewStart={bounds.start}
+                    now={today}
+                    onSelect={onSelectEvent}
+                    onChangeDates={onChangeDates && ((dates) => onChangeDates(event.id, dates))}
+                  />
                 ))}
               </div>
             ))}

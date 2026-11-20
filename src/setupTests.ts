@@ -21,3 +21,16 @@ if (typeof URL.createObjectURL !== 'function') {
   URL.createObjectURL = () => `blob:tracker/${(counter += 1)}`
   URL.revokeObjectURL = () => {}
 }
+
+// jsdom has no PointerEvent, so fireEvent.pointerDown would build a plain Event and drop
+// clientX / shiftKey / button. A MouseEvent subclass carries them, which is all drag needs.
+if (typeof globalThis.PointerEvent === 'undefined') {
+  class PointerEventPolyfill extends MouseEvent {
+    readonly pointerId: number
+    constructor(type: string, init: PointerEventInit = {}) {
+      super(type, init)
+      this.pointerId = init.pointerId ?? 0
+    }
+  }
+  globalThis.PointerEvent = PointerEventPolyfill as unknown as typeof PointerEvent
+}
