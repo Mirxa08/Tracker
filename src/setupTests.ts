@@ -1,2 +1,17 @@
 import '@testing-library/jest-dom/vitest'
 import 'fake-indexeddb/auto'
+
+// fake-indexeddb clones values on write using the global structuredClone. Under jsdom,
+// Blob is jsdom's class, which the structured-clone algorithm does not understand: it
+// silently arrives as {}. Real IndexedDB stores Blobs natively, so keep Blobs by reference
+// (recursing through plain objects and arrays, since records wrap the blob) to match that.
+const nativeStructuredClone = globalThis.structuredClone
+const cloneKeepingBlobs = (value: unknown): unknown => {
+  if (value instanceof Blob) return value
+  if (Array.isArray(value)) return value.map(cloneKeepingBlobs)
+  if (value !== null && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, cloneKeepingBlobs(v)]))
+  }
+  return nativeStructuredClone(value)
+}
+globalThis.structuredClone = cloneKeepingBlobs as typeof structuredClone
