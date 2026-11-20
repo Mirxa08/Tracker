@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { addEvent, addTrack, createProject } from '../domain/project'
 import { applyDraft, EventDialog } from './EventDialog'
@@ -231,6 +231,80 @@ test('a column added after rows exist gets an empty cell in every existing row',
     columns: ['Column 1', 'Column 2'],
     rows: [['', '']],
   })
+})
+
+// July is BST (UTC+1) in the pinned Europe/London test zone, so unlike the November fixtures
+// above, a UTC-shifted or string-sliced conversion gives a different answer here.
+test('submits the exact ISO instants for a summer-time (BST) event', async () => {
+  const onSubmit = vi.fn()
+  render(<EventDialog project={seeded()} dialog={{ mode: 'add' }} onClose={() => {}} onSubmit={onSubmit} />)
+  await userEvent.type(screen.getByLabelText(/event name/i), 'Summer')
+  await userEvent.type(screen.getByLabelText(/^start/i), '2026-07-10T09:30')
+  await userEvent.type(screen.getByLabelText(/^end/i), '2026-07-12T18:00')
+  await userEvent.click(screen.getByRole('button', { name: /save/i }))
+  expect(onSubmit.mock.calls[0][0].start).toBe('2026-07-10T08:30:00.000Z')
+  expect(onSubmit.mock.calls[0][0].end).toBe('2026-07-12T17:00:00.000Z')
+})
+
+test('pre-fills a summer-time event with its local wall-clock time', () => {
+  let project = addTrack(createProject('P'), 'T')
+  project = addEvent(project, {
+    trackId: project.tracks[0].id,
+    name: 'Summer',
+    start: '2026-07-10T08:30:00.000Z',
+    end: '2026-07-12T17:00:00.000Z',
+  })
+  render(<EventDialog project={project} dialog={{ mode: 'edit', eventId: project.events[0].id }} onClose={() => {}} onSubmit={() => {}} />)
+  expect(screen.getByLabelText(/^start/i)).toHaveValue('2026-07-10T09:30')
+  expect(screen.getByLabelText(/^end/i)).toHaveValue('2026-07-12T18:00')
+})
+
+test('submitting an edit unchanged preserves notes, track, image and colour', async () => {
+  const onSubmit = vi.fn()
+  let project = addTrack(addTrack(createProject('P'), 'First'), 'Second')
+  const notes = { columns: ['Resource', 'Left'], rows: [['Astrite', ''], ['', '7']] }
+  project = addEvent(project, {
+    trackId: project.tracks[1].id,
+    name: 'Full',
+    start: new Date(2026, 10, 5).toISOString(),
+    end: new Date(2026, 10, 26).toISOString(),
+    color: '#123456',
+    imageId: 'img_abc',
+    notes,
+  })
+  render(<EventDialog project={project} dialog={{ mode: 'edit', eventId: project.events[0].id }} onClose={() => {}} onSubmit={onSubmit} />)
+  expect(screen.getByLabelText(/^track/i)).toHaveValue(project.tracks[1].id)
+  await userEvent.click(screen.getByRole('button', { name: /save/i }))
+  const draft = onSubmit.mock.calls[0][0]
+  expect(draft.notes).toEqual(notes)
+  expect(draft.trackId).toBe(project.tracks[1].id)
+  expect(draft.imageId).toBe('img_abc')
+  expect(draft.color).toBe('#123456')
+  // and the draft really does leave notes intact once applied
+  expect(applyDraft(project, draft).events[0].notes).toEqual(notes)
+})
+
+test('the colour input defaults to the selected track colour and follows the track', async () => {
+  const project = addTrack(seeded(), 'Combat')
+  render(<EventDialog project={project} dialog={{ mode: 'add' }} onClose={() => {}} onSubmit={() => {}} />)
+  const colour = screen.getByLabelText(/^colour/i)
+  expect(colour).toHaveValue(project.tracks[0].color)
+  await userEvent.selectOptions(screen.getByLabelText(/^track/i), 'Combat')
+  expect(colour).toHaveValue(project.tracks[1].color)
+})
+
+test('a chosen colour reaches the submitted draft; an untouched one is omitted', async () => {
+  const onSubmit = vi.fn()
+  render(<EventDialog project={seeded()} dialog={{ mode: 'add' }} onClose={() => {}} onSubmit={onSubmit} />)
+  await userEvent.type(screen.getByLabelText(/event name/i), 'Coloured')
+  await userEvent.type(screen.getByLabelText(/^start/i), '2026-12-01T00:00')
+  await userEvent.type(screen.getByLabelText(/^end/i), '2026-12-02T00:00')
+  await userEvent.click(screen.getByRole('button', { name: /save/i }))
+  expect(onSubmit.mock.calls[0][0]).not.toHaveProperty('color')
+
+  fireEvent.change(screen.getByLabelText(/^colour/i), { target: { value: '#ff0000' } })
+  await userEvent.click(screen.getByRole('button', { name: /save/i }))
+  expect(onSubmit.mock.calls[1][0].color).toBe('#ff0000')
 })
 
 test('closes without submitting on cancel', async () => {

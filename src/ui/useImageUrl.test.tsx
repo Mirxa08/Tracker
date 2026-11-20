@@ -66,6 +66,28 @@ test('revokes a url that resolves after the effect was cancelled', async () => {
   expect(revoke).toHaveBeenCalledWith('blob:late')
 })
 
+test('never renders a revoked url when the same id comes back (A -> undefined -> A)', async () => {
+  const again = deferred()
+  lookup.mockResolvedValueOnce('blob:a1').mockReturnValueOnce(again.promise)
+  const rendered: Array<string | null> = []
+  const { rerender } = renderHook(({ id }: { id: string | undefined }) => {
+    const url = useImageUrl(id)
+    rendered.push(url)
+    return url
+  }, { initialProps: { id: 'a' as string | undefined } })
+  await act(async () => {})
+  expect(rendered.at(-1)).toBe('blob:a1')
+
+  rerender({ id: undefined })
+  expect(revoke).toHaveBeenCalledWith('blob:a1')
+  const before = rendered.length
+  rerender({ id: 'a' })
+  expect(rendered.slice(before)).not.toContain('blob:a1')
+
+  await act(async () => { again.resolve('blob:a2') })
+  expect(rendered.at(-1)).toBe('blob:a2')
+})
+
 test('returns null when there is no image id', () => {
   const { result } = renderHook(() => useImageUrl(undefined))
   expect(result.current).toBeNull()

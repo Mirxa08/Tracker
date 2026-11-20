@@ -12,6 +12,7 @@ export type EventDraft = {
   name: string
   start: string
   end: string
+  color?: string
   imageId?: string
   notes?: Notes
 }
@@ -50,7 +51,11 @@ export function EventDialog({
   const [end, setEnd] = useState(toLocalInputValue(editing?.end ?? ''))
   const [imageId, setImageId] = useState(editing?.imageId)
   const [notes, setNotes] = useState<Notes>(editing?.notes ?? { columns: [], rows: [] })
+  // undefined means "use the chosen track's colour": the input shows that colour and the
+  // draft omits `color`, so the event keeps following its track until one is picked.
+  const [colorChoice, setColorChoice] = useState<string | undefined>(editing?.color)
   const [error, setError] = useState<string | null>(null)
+  const trackColor = project.tracks.find((t) => t.id === trackId)?.color ?? '#000000'
 
   async function pickImage(file: File | undefined) {
     if (!file) return
@@ -77,6 +82,7 @@ export function EventDialog({
       start: startIso,
       end: endIso,
     }
+    if (colorChoice) draft.color = colorChoice
     if (imageId) draft.imageId = imageId
     if (notes.columns.length > 0) draft.notes = notes
     if (editing) draft.eventId = editing.id
@@ -109,6 +115,11 @@ export function EventDialog({
         <label>
           End
           <input type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} />
+        </label>
+
+        <label>
+          Colour (optional)
+          <input type="color" value={colorChoice ?? trackColor} onChange={(e) => setColorChoice(e.target.value)} />
         </label>
 
         <label>

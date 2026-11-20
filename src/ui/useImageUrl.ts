@@ -28,6 +28,9 @@ export function useImageUrl(imageId: string | undefined): string | null {
     return () => {
       cancelled = true
       if (created) URL.revokeObjectURL(created)
+      // Forget the resolved url with the effect: returning to the same id must not hand
+      // back the url revoked just above.
+      setResolved(null)
     }
   }, [imageId])
   return imageId && resolved?.id === imageId ? resolved.url : null

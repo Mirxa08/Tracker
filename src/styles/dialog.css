@@ -4,7 +4,10 @@
   background: rgb(0 0 0 / 55%);
   display: grid;
   place-items: center;
-  z-index: 10;
+  /* Above the timeline's whole scale (bars 10 ... corner 50, see timeline.css) and the
+     detail panel (60): .timeline__viewport creates no stacking context, so the sticky
+     gutter and bands compete with this overlay directly. */
+  z-index: 70;
   padding: 16px;
 }
 

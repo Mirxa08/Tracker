@@ -7,7 +7,7 @@ export function toLocalInputValue(iso: string): string {
   if (!iso) return ''
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ''
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  return `${String(d.getFullYear()).padStart(4, '0')}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 /** The value of a datetime-local input (local time) -> an ISO instant. */
@@ -16,5 +16,9 @@ export function fromLocalInputValue(value: string): string {
   const [date, time] = value.split('T')
   const [y, m, d] = date.split('-').map(Number)
   const [hh, mm] = time.split(':').map(Number)
-  return new Date(y, m - 1, d, hh, mm).toISOString()
+  // `new Date(y, ...)` maps years 0-99 to 1900-1999; setFullYear takes the year literally.
+  const result = new Date(0)
+  result.setFullYear(y, m - 1, d)
+  result.setHours(hh, mm, 0, 0)
+  return result.toISOString()
 }
