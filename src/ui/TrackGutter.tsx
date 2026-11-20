@@ -9,7 +9,7 @@ export function TrackGutter({
 }) {
   return (
     <div className="timeline__gutter">
-      <div style={{ height: 'var(--header-height)' }} />
+      <div className="timeline__corner" />
       {project.tracks.map((track) => (
         <div key={track.id} className="track-label">
           <span className="track-label__swatch" style={{ background: track.color }} />

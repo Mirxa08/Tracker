@@ -1,6 +1,7 @@
+import { memo } from 'react'
 import type { DayColumn, MonthSpan } from '../domain/time'
 
-export function HeaderBands({ days, months }: { days: DayColumn[]; months: MonthSpan[] }) {
+function HeaderBandsImpl({ days, months }: { days: DayColumn[]; months: MonthSpan[] }) {
   return (
     <div className="bands">
       <div className="bands__months">
@@ -11,7 +12,7 @@ export function HeaderBands({ days, months }: { days: DayColumn[]; months: Month
             data-testid="month-span"
             style={{ left: m.x, width: m.width }}
           >
-            {m.label}
+            <span className="month-span__label">{m.label}</span>
           </div>
         ))}
       </div>
@@ -34,3 +35,6 @@ export function HeaderBands({ days, months }: { days: DayColumn[]; months: Month
     </div>
   )
 }
+
+/** Memoised: the clock ticks every second but the bands only change when the days do. */
+export const HeaderBands = memo(HeaderBandsImpl)

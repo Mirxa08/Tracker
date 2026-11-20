@@ -1,10 +1,12 @@
+/* Dark is the default: :root carries the dark values, so a user with no colour-scheme
+   signal gets dark. Light applies for a light preference or an explicit data-theme. */
 :root {
-  --bg: #ffffff;
-  --surface: #f5f6f8;
-  --fg: #16181d;
-  --muted: #666c78;
-  --line: #e4e6ea;
-  --now: #e23b4b;
+  --bg: #0f1115;
+  --surface: #171a20;
+  --fg: #e9ebf0;
+  --muted: #9aa1ae;
+  --line: #23262d;
+  --now: #ff6b7a;
   --gutter-width: 190px;
   --row-height: 40px;
   --row-gap: 8px;
@@ -12,15 +14,24 @@
   color-scheme: light dark;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --bg: #0f1115;
-    --surface: #171a20;
-    --fg: #e9ebf0;
-    --muted: #9aa1ae;
-    --line: #23262d;
-    --now: #ff6b7a;
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    --bg: #ffffff;
+    --surface: #f5f6f8;
+    --fg: #16181d;
+    --muted: #666c78;
+    --line: #e4e6ea;
+    --now: #e23b4b;
   }
+}
+
+:root[data-theme='light'] {
+  --bg: #ffffff;
+  --surface: #f5f6f8;
+  --fg: #16181d;
+  --muted: #666c78;
+  --line: #e4e6ea;
+  --now: #e23b4b;
 }
 
 :root[data-theme='dark'] {

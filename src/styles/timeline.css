@@ -1,7 +1,20 @@
+/*
+ * One scroller for both axes. Everything that sticks (bands to the top, gutter and
+ * month labels to the left) sticks against this element, and nothing inside it sets
+ * overflow, so artwork that bleeds past a row box is never clipped by an ancestor.
+ */
+.timeline__viewport {
+  overflow: auto;
+  max-height: calc(100vh - var(--viewport-offset, 96px));
+}
+
+/* Sized to its content so sticky containing blocks span the whole scrollable area. */
 .timeline {
   position: relative;
   display: grid;
-  grid-template-columns: var(--gutter-width) 1fr;
+  grid-template-columns: var(--gutter-width) max-content;
+  width: max-content;
+  min-width: 100%;
   border-top: 1px solid var(--line);
 }
 
@@ -13,9 +26,12 @@
   border-right: 1px solid var(--line);
 }
 
-.timeline__scroll {
-  overflow-x: auto;
-  overflow-y: hidden;
+.timeline__corner {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: var(--header-height);
+  background: var(--bg);
 }
 
 .timeline__canvas { position: relative; }
@@ -24,9 +40,17 @@
 
 .bands__months { position: relative; height: 28px; }
 
+/* The span box covers the month; the label inside sticks to the visible left edge. */
 .month-span {
   position: absolute;
   top: 0;
+  height: 100%;
+}
+
+.month-span__label {
+  position: sticky;
+  left: var(--gutter-width);
+  display: inline-block;
   font-size: 18px;
   font-weight: 600;
   letter-spacing: -0.01em;

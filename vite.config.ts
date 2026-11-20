@@ -1,4 +1,4 @@
-// The DST tests are meaningless in a zone without transitions, so pin the test timezone.
+﻿// The DST tests are meaningless in a zone without transitions, so pin the test timezone.
 process.env.TZ = 'Europe/London'
 
 import { defineConfig } from 'vite'
@@ -11,5 +11,8 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/setupTests.ts'],
+    // theme.test.ts reads theme.css as text; vitest otherwise blanks CSS imports.
+    css: { include: [/theme\.css/] },
   },
 })
+
