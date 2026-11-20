@@ -1,0 +1,28 @@
+.dialog__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 55%);
+  display: grid;
+  place-items: center;
+  z-index: 10;
+  padding: 16px;
+}
+
+.dialog {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 20px;
+  width: min(560px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  display: grid;
+  gap: 12px;
+}
+
+.dialog label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.dialog input, .dialog select { font: inherit; padding: 6px 8px; }
+.dialog__actions { display: flex; justify-content: flex-end; gap: 8px; }
+.notes table { width: 100%; border-collapse: collapse; }
+.notes th, .notes td { border: 1px solid var(--line); padding: 2px; }
+.notes input { width: 100%; border: 0; background: transparent; color: inherit; font: inherit; }
