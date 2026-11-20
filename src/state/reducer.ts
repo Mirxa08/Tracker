@@ -51,23 +51,26 @@ function replace(state: State, project: Project): State {
   }
 }
 
+// Undo is only ever "undo the delete I just did". Any action that changes the projects
+// array or which project is current clears the pending undo, so a later undo can never
+// discard work the user did after the delete, or write into a project not on screen.
 export function reducer(state: State, action: Action): State {
   switch (action.type) {
     case 'loaded':
-      return { ...state, projects: action.projects, currentId: action.currentId }
+      return { ...state, projects: action.projects, currentId: action.currentId, undo: null }
 
     case 'applyProject':
-      return replace(state, action.project)
+      return { ...replace(state, action.project), undo: null }
 
     case 'selectProject':
-      return { ...state, currentId: action.projectId, selectedEventId: null, dialog: null }
+      return { ...state, currentId: action.projectId, selectedEventId: null, dialog: null, undo: null }
 
     case 'removeProject': {
       const projects = state.projects.filter((p) => p.id !== action.projectId)
       const currentId = state.currentId === action.projectId
         ? (projects[0]?.id ?? null)
         : state.currentId
-      return { ...state, projects, currentId, selectedEventId: null, dialog: null }
+      return { ...state, projects, currentId, selectedEventId: null, dialog: null, undo: null }
     }
 
     case 'deleteEvent': {
