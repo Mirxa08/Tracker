@@ -53,10 +53,19 @@ export function deleteTrack(p: Project, trackId: string): Project {
 
 export function reorderTracks(p: Project, orderedIds: string[]): Project {
   const byId = new Map(p.tracks.map((t) => [t.id, t]))
-  const tracks = orderedIds
-    .map((id) => byId.get(id))
-    .filter((t): t is NonNullable<typeof t> => t !== undefined)
-    .map((t, i) => ({ ...t, order: i }))
+  const seen = new Set<string>()
+  const ordered: Project['tracks'] = []
+  for (const id of orderedIds) {
+    const track = byId.get(id)
+    if (track && !seen.has(id)) {
+      seen.add(id)
+      ordered.push(track)
+    }
+  }
+  const omitted = p.tracks
+    .filter((t) => !seen.has(t.id))
+    .sort((a, b) => a.order - b.order)
+  const tracks = [...ordered, ...omitted].map((t, i) => ({ ...t, order: i }))
   return touched(p, { tracks })
 }
 
