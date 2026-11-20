@@ -1,18 +1,79 @@
-import { updateEvent } from './domain/project'
+import { useRef } from 'react'
+import { addTrack, createProject, updateEvent } from './domain/project'
+import { buildExport, exportFileName, importFromJson, serializeExport } from './persistence/transfer'
 import { StoreProvider, useStore } from './state/StoreProvider'
 import { currentProject } from './state/reducer'
 import { EventDetail } from './ui/EventDetail'
 import { EventDialog, applyDraft } from './ui/EventDialog'
-import { Timeline } from './ui/Timeline'
+import { downloadText } from './ui/download'
+import { ProjectBar } from './ui/ProjectBar'
+import { Timeline, type TimelineHandle } from './ui/Timeline'
 import './styles/theme.css'
 
 function Workspace() {
   const { state, dispatch } = useStore()
   const project = currentProject(state)
   const selected = project?.events.find((e) => e.id === state.selectedEventId) ?? null
+  const timeline = useRef<TimelineHandle>(null)
+  const fail = (error: unknown, fallback: string) =>
+    dispatch({ type: 'error', message: error instanceof Error ? error.message : fallback })
+
+  // The provider persists whatever lands in state, so these only dispatch.
+  const create = () => {
+    const created = createProject('New project')
+    dispatch({ type: 'loaded', projects: [...state.projects, created], currentId: created.id })
+  }
+  const addTrackPrompt = () => {
+    if (!project) return
+    const name = window.prompt('Track name')?.trim()
+    if (!name) return
+    dispatch({ type: 'applyProject', project: addTrack(project, name) })
+  }
+  const exportProject = async (opts: { includeImages: boolean }) => {
+    if (!project) return
+    try {
+      const file = await buildExport(project, opts)
+      downloadText(exportFileName(project, new Date()), serializeExport(file))
+    } catch (error) {
+      fail(error, 'That project could not be exported.')
+    }
+  }
+  const importFile = async (file: File) => {
+    try {
+      const imported = await importFromJson(await file.text())
+      dispatch({ type: 'error', message: null })
+      dispatch({ type: 'loaded', projects: [...state.projects, imported], currentId: imported.id })
+    } catch (error) {
+      fail(error, 'That file could not be imported.')
+    }
+  }
+  const deleteCurrent = () => {
+    if (!project) return
+    if (!window.confirm(`Delete "${project.name}" and everything in it? This cannot be undone.`)) return
+    if (state.projects.length === 1) {
+      // Never leave the app with no project: the provider only seeds one on first load.
+      const fresh = createProject('My Timeline')
+      dispatch({ type: 'loaded', projects: [fresh], currentId: fresh.id })
+      return
+    }
+    dispatch({ type: 'removeProject', projectId: project.id })
+  }
+
   return (
     <>
       <h1>Tracker</h1>
+      <ProjectBar
+        projects={state.projects}
+        currentId={state.currentId}
+        onSelect={(projectId) => dispatch({ type: 'selectProject', projectId })}
+        onCreate={create}
+        onAddTrack={addTrackPrompt}
+        onAddEvent={() => dispatch({ type: 'openAdd' })}
+        onImport={importFile}
+        onExport={exportProject}
+        onJumpToNow={() => timeline.current?.scrollToNow()}
+      />
+      {project && <button type="button" onClick={deleteCurrent}>Delete project</button>}
       {state.error && <p role="alert">{state.error}</p>}
       {state.undo && (
         <p role="status">
@@ -23,6 +84,7 @@ function Workspace() {
       {project
         ? (
           <Timeline
+            ref={timeline}
             project={project}
             onAddToTrack={(trackId) => dispatch({ type: 'openAdd', trackId })}
             onSelectEvent={(eventId) => dispatch({ type: 'selectEvent', eventId })}

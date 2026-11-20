@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useImperativeHandle, useMemo, useRef, type Ref } from 'react'
 import { eventsForTrack, projectBounds } from '../domain/project'
 import type { Project } from '../domain/schema'
 import { DAY_WIDTH, dayColumns, monthSpans, xForTime } from '../domain/time'
@@ -18,12 +18,16 @@ function NowMarker({ viewStart }: { viewStart: Date }) {
 // Hoisted: a fresh default per render would hand every bar a new prop.
 const noop = () => {}
 
+export type TimelineHandle = { scrollToNow: () => void }
+
 export function Timeline({
+  ref,
   project,
   onAddToTrack = noop,
   onSelectEvent = noop,
   onChangeDates,
 }: {
+  ref?: Ref<TimelineHandle>
   project: Project
   onAddToTrack?: (trackId: string) => void
   onSelectEvent?: (eventId: string) => void
@@ -40,12 +44,32 @@ export function Timeline({
   const months = useMemo(() => monthSpans(days), [days])
   const width = days.length * DAY_WIDTH
 
-  if (project.tracks.length === 0) {
+  const viewport = useRef<HTMLDivElement>(null)
+  const hasTracks = project.tracks.length > 0
+
+  // Puts the now-line a third of the way across the viewport.
+  const scrollToNow = (behavior: ScrollBehavior) => {
+    const el = viewport.current
+    if (!el) return
+    el.scrollTo?.({
+      left: Math.max(0, xForTime(new Date(), bounds.start) - el.clientWidth / 3),
+      behavior,
+    })
+  }
+  const scrollToNowRef = useRef(scrollToNow)
+  scrollToNowRef.current = scrollToNow
+  useImperativeHandle(ref, () => ({ scrollToNow: () => scrollToNowRef.current('smooth') }), [])
+
+  // Open at today. The viewport only exists once there is a track, so this re-runs when the
+  // first track appears and when another project is shown.
+  useEffect(() => { scrollToNowRef.current('auto') }, [hasTracks, project.id])
+
+  if (!hasTracks) {
     return <p className="timeline__empty">No tracks yet — add your first track to start building this timeline.</p>
   }
 
   return (
-    <div className="timeline__viewport">
+    <div className="timeline__viewport" ref={viewport}>
       <div className="timeline" style={{ ['--day-width' as string]: `${DAY_WIDTH}px` }}>
         <TrackGutter project={project} onAdd={onAddToTrack} />
         <div className="timeline__scroll">

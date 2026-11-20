@@ -1,0 +1,11 @@
+.project-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.project-bar label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.project-bar button { font: inherit; padding: 5px 10px; }

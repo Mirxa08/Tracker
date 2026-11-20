@@ -34,3 +34,15 @@ if (typeof globalThis.PointerEvent === 'undefined') {
   }
   globalThis.PointerEvent = PointerEventPolyfill as unknown as typeof PointerEvent
 }
+
+// jsdom's Blob/File has no text(); real browsers do. FileReader is the portable stand-in.
+if (typeof Blob.prototype.text !== 'function') {
+  Blob.prototype.text = function text(this: Blob) {
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result))
+      reader.onerror = () => reject(reader.error)
+      reader.readAsText(this)
+    })
+  }
+}
