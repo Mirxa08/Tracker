@@ -2,7 +2,7 @@ import {
   SCHEMA_VERSION, migrate, newId, validateExportFile,
   type ExportFile, type Project,
 } from '../domain/schema'
-import { getImage, putImage, putProject } from './db'
+import { deleteImage, getImage, putImage, putProject } from './db'
 import { blobToDataUrl, dataUrlToBlob } from './images'
 
 export async function buildExport(
@@ -53,37 +53,52 @@ export async function importFromJson(json: string): Promise<Project> {
 
   const file = migrate(validateExportFile(parsed))
 
-  const imageIdMap = new Map<string, string>()
-  for (const [oldId, dataUrl] of Object.entries(file.images)) {
-    const blob = await dataUrlToBlob(dataUrl)
-    const id = newId('img')
-    await putImage({ id, blob, width: 0, height: 0 })
-    imageIdMap.set(oldId, id)
+  // Images are written before the project, so a failure after this point would
+  // orphan them. Track what was written and remove it on the way out.
+  const writtenImageIds: string[] = []
+  try {
+    const imageIdMap = new Map<string, string>()
+    for (const [oldId, dataUrl] of Object.entries(file.images)) {
+      const blob = await dataUrlToBlob(dataUrl)
+      const id = newId('img')
+      // Dimensions are not carried in the export file, and nothing reads
+      // ImageRecord width/height, so they are stored as 0 on purpose.
+      await putImage({ id, blob, width: 0, height: 0 })
+      writtenImageIds.push(id)
+      imageIdMap.set(oldId, id)
+    }
+
+    const trackIdMap = new Map<string, string>()
+    const tracks = file.project.tracks.map((t) => {
+      const id = newId('t')
+      trackIdMap.set(t.id, id)
+      return { ...t, id }
+    })
+
+    // Guard only: validateProject already rejects events whose trackId is not in the file's tracks.
+    const events = file.project.events.map((e) => {
+      const mappedImage = e.imageId ? imageIdMap.get(e.imageId) : undefined
+      const event = { ...e, id: newId('e'), trackId: trackIdMap.get(e.trackId) ?? e.trackId }
+      if (mappedImage) event.imageId = mappedImage
+      else delete event.imageId
+      return event
+    })
+
+    const now = new Date().toISOString()
+    const project: Project = {
+      ...file.project,
+      id: newId('p'),
+      tracks,
+      events,
+      updatedAt: now,
+    }
+    await putProject(project)
+    return project
+  } catch (error) {
+    // Best effort: a failed cleanup must not hide the original error.
+    for (const id of writtenImageIds) {
+      await deleteImage(id).catch(() => {})
+    }
+    throw error
   }
-
-  const trackIdMap = new Map<string, string>()
-  const tracks = file.project.tracks.map((t) => {
-    const id = newId('t')
-    trackIdMap.set(t.id, id)
-    return { ...t, id }
-  })
-
-  const events = file.project.events.map((e) => {
-    const mappedImage = e.imageId ? imageIdMap.get(e.imageId) : undefined
-    const event = { ...e, id: newId('e'), trackId: trackIdMap.get(e.trackId) ?? e.trackId }
-    if (mappedImage) event.imageId = mappedImage
-    else delete event.imageId
-    return event
-  })
-
-  const now = new Date().toISOString()
-  const project: Project = {
-    ...file.project,
-    id: newId('p'),
-    tracks,
-    events,
-    updatedAt: now,
-  }
-  await putProject(project)
-  return project
 }
