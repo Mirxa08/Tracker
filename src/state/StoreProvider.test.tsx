@@ -1,8 +1,9 @@
 import { act, cleanup, render } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { addTrack, createProject } from '../domain/project'
+import type { Project } from '../domain/schema'
 import * as db from '../persistence/db'
-import type { Action } from './reducer'
+import { currentProject, initialState, type Action, type State } from './reducer'
 import { StoreProvider, useStore } from './StoreProvider'
 
 vi.mock('../persistence/db', async (importOriginal) => {
@@ -11,24 +12,39 @@ vi.mock('../persistence/db', async (importOriginal) => {
     ...actual,
     listProjects: vi.fn(actual.listProjects),
     putProject: vi.fn(actual.putProject),
+    deleteProject: vi.fn(actual.deleteProject),
   }
 })
 
 const DEBOUNCE_MS = 300
 const project = addTrack(createProject('Timeline'), 'Banners')
+const other = createProject('Other')
 
 let dispatch: (action: Action) => void = () => {}
+let latest: State = initialState
 function Probe() {
-  dispatch = useStore().dispatch
+  const store = useStore()
+  dispatch = store.dispatch
+  latest = store.state
   return null
+}
+
+// The real module, bypassing the mock, so assertions read what actually reached IndexedDB.
+function storage() {
+  return vi.importActual<typeof import('../persistence/db')>('../persistence/db')
+}
+
+async function resetStorage() {
+  const real = await storage()
+  for (const p of await real.listProjects()) await real.deleteProject(p.id)
 }
 
 function writes() {
   return vi.mocked(db.putProject).mock.calls.map((call) => call[0])
 }
 
-async function mount() {
-  vi.mocked(db.listProjects).mockResolvedValue([project])
+async function mount(projects: Project[] = [project]) {
+  vi.mocked(db.listProjects).mockResolvedValue(projects)
   const view = render(<StoreProvider><Probe /></StoreProvider>)
   // Let listProjects resolve and the loaded action commit.
   await act(async () => {})
@@ -38,8 +54,9 @@ async function mount() {
   return view
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+  await resetStorage()
 })
 
 afterEach(() => {
@@ -84,6 +101,43 @@ test('unmounting persists a write that is still pending', async () => {
   expect(writes()).toHaveLength(1)
   // The write really reached storage, not just the mock.
   await vi.mocked(db.putProject).mock.results[0].value
-  const actual = await vi.importActual<typeof import('../persistence/db')>('../persistence/db')
-  expect((await actual.getProject(project.id))?.tracks).toHaveLength(2)
+  expect((await (await storage()).getProject(project.id))?.tracks).toHaveLength(2)
+})
+
+test('switching project inside the debounce window still saves the edited project', async () => {
+  await mount([project, other])
+  act(() => dispatch({ type: 'applyProject', project: addTrack(project, 'Combat') }))
+  act(() => { vi.advanceTimersByTime(100) })
+  act(() => dispatch({ type: 'selectProject', projectId: other.id }))
+  act(() => { vi.advanceTimersByTime(DEBOUNCE_MS) })
+  await Promise.all(vi.mocked(db.putProject).mock.results.map((r) => r.value))
+  const real = await storage()
+  expect((await real.getProject(project.id))?.tracks).toHaveLength(2)
+  expect(await real.getProject(other.id)).toBeDefined()
+})
+
+test('a failed storage open leaves an in-memory project so the session stays usable', async () => {
+  vi.mocked(db.listProjects).mockRejectedValueOnce(
+    new db.StorageError('Storage is unavailable in private browsing.'),
+  )
+  render(<StoreProvider><Probe /></StoreProvider>)
+  await act(async () => {})
+  expect(latest.error).toBe('Storage is unavailable in private browsing.')
+  const session = currentProject(latest)
+  expect(session).not.toBeNull()
+  act(() => dispatch({ type: 'applyProject', project: addTrack(session!, 'Combat') }))
+  act(() => { vi.advanceTimersByTime(DEBOUNCE_MS) })
+  expect(db.putProject).not.toHaveBeenCalled()
+})
+
+test('removing a project deletes its stored row and a pending edit does not resurrect it', async () => {
+  await mount([project, other])
+  const real = await storage()
+  expect(await real.getProject(project.id)).toBeDefined()
+  act(() => dispatch({ type: 'applyProject', project: addTrack(project, 'Combat') }))
+  act(() => dispatch({ type: 'removeProject', projectId: project.id }))
+  act(() => { vi.advanceTimersByTime(DEBOUNCE_MS) })
+  await Promise.all(vi.mocked(db.deleteProject).mock.results.map((r) => r.value))
+  expect(await real.getProject(project.id)).toBeUndefined()
+  expect(await real.getProject(other.id)).toBeDefined()
 })

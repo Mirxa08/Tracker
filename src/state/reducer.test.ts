@@ -167,3 +167,31 @@ test('selecting another project closes an open dialog', () => {
   expect(open.dialog).not.toBeNull()
   expect(reducer(open, { type: 'selectProject', projectId: other.id }).dialog).toBeNull()
 })
+
+test('removing the current project selects the first remaining project', () => {
+  const a = createProject('A')
+  const b = createProject('B')
+  const c = createProject('C')
+  const loaded = reducer(initialState, { type: 'loaded', projects: [a, b, c], currentId: b.id })
+  const removed = reducer(loaded, { type: 'removeProject', projectId: b.id })
+  expect(removed.projects.map((p) => p.id)).toEqual([a.id, c.id])
+  expect(removed.currentId).toBe(a.id)
+})
+
+test('removing the first project while it is current selects the next one', () => {
+  const a = createProject('A')
+  const b = createProject('B')
+  const loaded = reducer(initialState, { type: 'loaded', projects: [a, b], currentId: a.id })
+  const removed = reducer(loaded, { type: 'removeProject', projectId: a.id })
+  expect(removed.projects.map((p) => p.id)).toEqual([b.id])
+  expect(removed.currentId).toBe(b.id)
+})
+
+test('removing the last project leaves nothing selected', () => {
+  const a = createProject('A')
+  const loaded = reducer(initialState, { type: 'loaded', projects: [a], currentId: a.id })
+  const removed = reducer(loaded, { type: 'removeProject', projectId: a.id })
+  expect(removed.projects).toEqual([])
+  expect(removed.currentId).toBeNull()
+  expect(currentProject(removed)).toBeNull()
+})
