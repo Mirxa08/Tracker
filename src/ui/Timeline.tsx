@@ -33,8 +33,9 @@ export function Timeline({
   onSelectEvent?: (eventId: string) => void
   onChangeDates?: (eventId: string, dates: { start: string; end: string }) => void
 }) {
-  // Coarse clock: only needed to roll the view over at midnight. The second-by-second
-  // clock lives in NowMarker so bars and day columns are not re-rendered every tick.
+  // The coarse minute tick is deliberate: it is only needed to roll the view over at
+  // midnight. The per-second clock lives in NowMarker so bars and day columns are not
+  // re-rendered every second.
   const today = useNow(60_000)
   const dayKey = today.toDateString()
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `today` is only read for its calendar day

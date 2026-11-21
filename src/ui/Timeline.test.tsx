@@ -1,4 +1,3 @@
-﻿
 import { Profiler } from 'react'
 import { render, screen, act } from '@testing-library/react'
 import { addEvent, addTrack, createProject, projectBounds } from '../domain/project'
