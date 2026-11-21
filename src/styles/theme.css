@@ -1,16 +1,26 @@
 /* Dark is the default: :root carries the dark values, so a user with no colour-scheme
-   signal gets dark. Light applies for a light preference or an explicit data-theme. */
+   signal gets dark. Light applies for a light preference or an explicit data-theme.
+   App.tsx also writes data-theme from the project's settings.theme, so the attribute is
+   normally present; the media query remains the fallback before React mounts. */
 :root {
-  --bg: #0f1115;
-  --surface: #171a20;
-  --fg: #e9ebf0;
-  --muted: #9aa1ae;
+  --bg: #07080c;
+  --surface: rgba(255, 255, 255, 0.03);
+  --border: rgba(255, 255, 255, 0.07);
+  --fg: #e8eaf2;
+  --muted: #8b90a3;
   --line: #23262d;
   --now: #ff6b7a;
   --gutter-width: 190px;
   --row-height: 40px;
   --row-gap: 8px;
   --header-height: 56px;
+  /* Shape and motion are theme-independent: one scale for every themed block below. */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-pill: 999px;
+  --t-fast: 120ms ease-out;
+  --t-med: 180ms ease-out;
   color-scheme: light dark;
 }
 
@@ -18,6 +28,7 @@
   :root:not([data-theme='dark']) {
     --bg: #ffffff;
     --surface: #f5f6f8;
+    --border: rgba(0, 0, 0, 0.1);
     --fg: #16181d;
     --muted: #666c78;
     --line: #e4e6ea;
@@ -28,6 +39,7 @@
 :root[data-theme='light'] {
   --bg: #ffffff;
   --surface: #f5f6f8;
+  --border: rgba(0, 0, 0, 0.1);
   --fg: #16181d;
   --muted: #666c78;
   --line: #e4e6ea;
@@ -35,10 +47,11 @@
 }
 
 :root[data-theme='dark'] {
-  --bg: #0f1115;
-  --surface: #171a20;
-  --fg: #e9ebf0;
-  --muted: #9aa1ae;
+  --bg: #07080c;
+  --surface: rgba(255, 255, 255, 0.03);
+  --border: rgba(255, 255, 255, 0.07);
+  --fg: #e8eaf2;
+  --muted: #8b90a3;
   --line: #23262d;
   --now: #ff6b7a;
 }

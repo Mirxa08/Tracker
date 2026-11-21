@@ -1,0 +1,309 @@
+/*
+ * Sakuga finish layer.
+ *
+ * The spotlight technique below (two custom properties updated from the cursor, a ::before
+ * inner glow at 800px/0.06 and a border-masked ::after at 600px/0.4, over a translucent
+ * surface with a 20px grid) is reproduced from Sakuga UI's
+ * src/components/effects/SpotlightGrid.tsx.
+ *   Sakuga UI — Prateek Raiger — MIT licence — https://github.com/prateekraiger/sakuga-ui
+ * Sakuga UI is a copy-paste kit, not a package: nothing joins the runtime dependencies.
+ *
+ * This file owns the FINISH (colour, radius, border, glow, focus ring, motion). Layout stays
+ * in theme/timeline/event-bar/detail/dialog/project-bar.css, whose computed values tests
+ * assert, and in Tailwind utilities on the components themselves.
+ *
+ * Listed in test.css.include (vite.config.ts): a CSS file vitest does not include is
+ * silently blanked, and sakuga.test.tsx asserts on this text.
+ */
+
+/* ---------------------------------------------------------------- SpotlightSurface ------ */
+
+.sk-spotlight {
+  position: relative;
+  border-radius: var(--r-md);
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+}
+
+/* The faint texture under the surface. 20px is Sakuga's own pitch; the day canvas overrides
+   it to the day grid (see .sk-spotlight--day-grid). */
+.sk-spotlight--grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* The inner glow. --mouse-x/--mouse-y are written on the element itself by
+   useSpotlight (SpotlightSurface.tsx); far off-canvas until the cursor arrives. */
+.sk-spotlight::before,
+.sk-spotlight::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--t-med);
+}
+
+.sk-spotlight::before {
+  z-index: 0;
+  background: radial-gradient(
+    800px circle at var(--mouse-x, -1000px) var(--mouse-y, -1000px),
+    rgba(255, 255, 255, 0.06),
+    transparent 40%
+  );
+}
+
+/* The brighter border glow, masked to the 1px edge so only the border lights. */
+.sk-spotlight::after {
+  z-index: 1;
+  padding: 1px;
+  background: radial-gradient(
+    600px circle at var(--mouse-x, -1000px) var(--mouse-y, -1000px),
+    rgba(255, 255, 255, 0.4),
+    transparent 40%
+  );
+  -webkit-mask: linear-gradient(#000, #000) content-box, linear-gradient(#000, #000);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000, #000) content-box, linear-gradient(#000, #000);
+  mask-composite: exclude;
+}
+
+.sk-spotlight:hover::before,
+.sk-spotlight:focus-visible::before,
+.sk-spotlight:hover::after,
+.sk-spotlight:focus-visible::after {
+  opacity: 1;
+}
+
+/* A white glow is invisible on a white page, so light flips it to a soft shadow. */
+:root[data-theme='light'] .sk-spotlight::before {
+  background: radial-gradient(
+    800px circle at var(--mouse-x, -1000px) var(--mouse-y, -1000px),
+    rgba(0, 0, 0, 0.05),
+    transparent 40%
+  );
+}
+
+:root[data-theme='light'] .sk-spotlight::after {
+  background: radial-gradient(
+    600px circle at var(--mouse-x, -1000px) var(--mouse-y, -1000px),
+    rgba(0, 0, 0, 0.22),
+    transparent 40%
+  );
+}
+
+:root[data-theme='light'] .sk-spotlight--grid {
+  background-image:
+    linear-gradient(rgba(0, 0, 0, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.04) 1px, transparent 1px);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) .sk-spotlight::before {
+    background: radial-gradient(
+      800px circle at var(--mouse-x, -1000px) var(--mouse-y, -1000px),
+      rgba(0, 0, 0, 0.05),
+      transparent 40%
+    );
+  }
+
+  :root:not([data-theme='dark']) .sk-spotlight::after {
+    background: radial-gradient(
+      600px circle at var(--mouse-x, -1000px) var(--mouse-y, -1000px),
+      rgba(0, 0, 0, 0.22),
+      transparent 40%
+    );
+  }
+
+  :root:not([data-theme='dark']) .sk-spotlight--grid {
+    background-image:
+      linear-gradient(rgba(0, 0, 0, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 0, 0, 0.04) 1px, transparent 1px);
+  }
+}
+
+/* ------------------------------------------------------------------- focus ring ---------- */
+
+/* One ring for every control, visible against both themes: a light-on-dark inner stroke
+   plus an outline in the foreground colour, so neither theme loses it against its surface. */
+.sk-btn:focus-visible,
+.sk-icon-btn:focus-visible,
+.sk-input:focus-visible,
+.sk-select:focus-visible,
+.sk-seg__input:focus-visible + .sk-seg__label,
+.sk-input:focus,
+.sk-select:focus {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+
+/* ----------------------------------------------------------------------- Button ---------- */
+
+.sk-btn {
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background-color: var(--surface);
+  color: var(--fg);
+  cursor: pointer;
+  transition: transform var(--t-fast), background-color var(--t-fast), border-color var(--t-fast);
+}
+
+.sk-btn:hover { transform: scale(1.02); }
+.sk-btn:active { transform: scale(0.98); }
+.sk-btn[disabled] { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.sk-btn--primary {
+  background-color: color-mix(in srgb, var(--fg) 92%, transparent);
+  color: var(--bg);
+  border-color: transparent;
+}
+
+.sk-btn--quiet {
+  background-color: transparent;
+  color: var(--muted);
+}
+
+.sk-btn--quiet:hover { color: var(--fg); background-color: var(--surface); }
+
+.sk-btn--danger {
+  background-color: color-mix(in srgb, var(--now) 18%, transparent);
+  border-color: color-mix(in srgb, var(--now) 55%, transparent);
+  color: var(--now);
+}
+
+.sk-btn--danger:hover { background-color: color-mix(in srgb, var(--now) 28%, transparent); }
+
+/* ------------------------------------------------------------------- IconButton ---------- */
+
+.sk-icon-btn {
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background-color: var(--surface);
+  color: var(--fg);
+  cursor: pointer;
+  transition: transform var(--t-fast), background-color var(--t-fast);
+}
+
+.sk-icon-btn:hover { transform: scale(1.02); background-color: color-mix(in srgb, var(--fg) 10%, transparent); }
+.sk-icon-btn:active { transform: scale(0.98); }
+
+/* --------------------------------------------------------------- Field / inputs ---------- */
+
+.sk-field__label { color: var(--muted); }
+
+.sk-field__error { color: var(--now); }
+
+.sk-input,
+.sk-select {
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background-color: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  transition: border-color var(--t-fast), background-color var(--t-fast);
+}
+
+.sk-input:hover,
+.sk-select:hover { border-color: color-mix(in srgb, var(--fg) 25%, transparent); }
+
+/* A native select, restyled: the popup, keyboard and screen-reader behaviour stay the
+   browser's. The chevron is a background image so no icon package is needed. */
+.sk-select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 15px) calc(50% + 2px), calc(100% - 10px) calc(50% + 2px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+/* A dark popup list needs a dark background on the options too, or the OS paints them white. */
+.sk-select option { background-color: var(--bg); color: var(--fg); }
+
+.sk-input[type='color'] { padding: 2px; height: 32px; }
+.sk-input[type='file'] { padding: 5px 8px; }
+
+/* ------------------------------------------------------------------------ Badge ---------- */
+
+.sk-badge {
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border);
+  /* Opaque enough to read over any bar colour or artwork underneath, with the blur doing
+     the rest: the translucent --surface alone would leave the label fighting the bar. */
+  background-color: color-mix(in srgb, var(--bg) 72%, transparent);
+  backdrop-filter: blur(6px);
+  color: var(--fg);
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------------------ Panel ---------- */
+
+.sk-panel {
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border);
+  background-color: var(--bg);
+}
+
+/* ------------------------------------------------------------------- Segmented ----------- */
+
+.sk-seg {
+  display: inline-flex;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border);
+  background-color: var(--surface);
+  padding: 2px;
+  gap: 2px;
+}
+
+.sk-seg__item { position: relative; display: inline-flex; }
+
+/* The real radio keeps the arrow-key and screen-reader behaviour of a radio group; the
+   label is what gets painted. Clipped rather than display:none so focus still lands. */
+.sk-seg__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sk-seg__label {
+  border-radius: var(--r-pill);
+  color: var(--muted);
+  cursor: pointer;
+  transition: background-color var(--t-fast), color var(--t-fast);
+}
+
+.sk-seg__label:hover { color: var(--fg); }
+
+.sk-seg__input:checked + .sk-seg__label {
+  background-color: color-mix(in srgb, var(--fg) 14%, transparent);
+  color: var(--fg);
+}
+
+/* ----------------------------------------------------------- reduced motion -------------- */
+
+/* The accessibility floor, and "calm" is part of the brief: no transforms and no glow
+   transitions. The glow still tracks the cursor, it just appears without animating. */
+@media (prefers-reduced-motion: reduce) {
+  .sk-spotlight::before,
+  .sk-spotlight::after,
+  .sk-btn,
+  .sk-icon-btn,
+  .sk-input,
+  .sk-select,
+  .sk-seg__label {
+    transition: none;
+  }
+
+  .sk-btn:hover,
+  .sk-btn:active,
+  .sk-icon-btn:hover,
+  .sk-icon-btn:active {
+    transform: none;
+  }
+}

@@ -25,12 +25,24 @@ function luminance(hex: string): number {
 }
 
 const DARK = {
-  '--bg': '#0f1115',
-  '--surface': '#171a20',
-  '--fg': '#e9ebf0',
-  '--muted': '#9aa1ae',
+  '--bg': '#07080c',
+  '--surface': 'rgba(255, 255, 255, 0.03)',
+  '--border': 'rgba(255, 255, 255, 0.07)',
+  '--fg': '#e8eaf2',
+  '--muted': '#8b90a3',
   '--line': '#23262d',
   '--now': '#ff6b7a',
+}
+
+// The shape and motion scale is theme-independent, so it is declared once on :root and
+// every component reads it from there. Pinned so a stray radius is a deliberate act.
+const SCALE = {
+  '--r-sm': '8px',
+  '--r-md': '12px',
+  '--r-lg': '16px',
+  '--r-pill': '999px',
+  '--t-fast': '120ms ease-out',
+  '--t-med': '180ms ease-out',
 }
 
 // Ruling 25: dark is the default. If the default is ever flipped these must fail, so the
@@ -47,13 +59,27 @@ test('light values only apply under a light preference or an explicit light them
   expect(vars(rule(`:root[data-theme='dark']`))).toEqual(DARK)
 })
 
+test('the radii and durations are declared on :root, once, for both themes', () => {
+  const root = vars(rule(':root'))
+  for (const [name, value] of Object.entries(SCALE)) expect(root[name]).toBe(value)
+  // Not redeclared per theme: a radius that differed between themes would be a bug.
+  for (const selector of [`:root[data-theme='light']`, `:root[data-theme='dark']`]) {
+    for (const name of Object.keys(SCALE)) expect(vars(rule(selector))[name]).toBeUndefined()
+  }
+})
+
 test('the light override is the inverse of dark: lighter background, darker text', () => {
   const dark = vars(rule(':root'))
   const light = vars(rule(`:root[data-theme='light']`))
   expect(Object.keys(light).sort()).toEqual(Object.keys(DARK).sort())
   expect(luminance(light['--bg'])).toBeGreaterThan(luminance(dark['--bg']))
-  expect(luminance(light['--surface'])).toBeGreaterThan(luminance(dark['--surface']))
   expect(luminance(light['--fg'])).toBeLessThan(luminance(dark['--fg']))
+  // --surface and --border are translucent overlays in dark, so luminance says nothing about
+  // them: dark lifts a surface with white over near-black, light sits it on white.
+  expect(dark['--surface']).toMatch(/^rgba\(255, 255, 255,/)
+  expect(dark['--border']).toMatch(/^rgba\(255, 255, 255,/)
+  expect(luminance(light['--surface'])).toBeGreaterThan(0.85)
+  expect(light['--border']).toMatch(/^rgba\(0, 0, 0,/)
   expect(luminance(light['--bg'])).toBeGreaterThan(0.9)
   expect(luminance(light['--fg'])).toBeLessThan(0.1)
   for (const name of Object.keys(DARK)) expect(light[name]).not.toBe(dark[name])

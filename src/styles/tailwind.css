@@ -10,5 +10,6 @@
 @import 'tailwindcss/theme.css' layer(theme);
 @import 'tailwindcss/utilities.css' layer(utilities);
 
-/* Tailwind v4 has no config file: sources are declared here. */
-@source '../ui';
+/* Tailwind v4 has no config file, and importing the utilities layer alone (rather than
+   `tailwindcss`) turns off automatic source detection, so the sources are declared here. */
+@source '../';
