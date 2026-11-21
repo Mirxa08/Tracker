@@ -1,0 +1,6 @@
+# The vendored Sakuga VFX core is checked in byte for byte and a test hashes it against the
+# upstream commit it was taken from. `core.autocrlf` is true on at least one machine that
+# works on this repo, which would hand the working tree CRLF on checkout and break that
+# hash for everyone but whoever vendored it. -text means: no conversion, in either
+# direction, ever.
+public/sakuga-vfx/core.js -text
