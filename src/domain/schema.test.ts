@@ -74,3 +74,42 @@ test('newId produces unique prefixed ids', () => {
   expect(a).toMatch(/^e_/)
   expect(a).not.toBe(b)
 })
+
+describe('duplicate ids', () => {
+  const secondTrack = { id: 't_2', name: 'Events', color: '#16a085', order: 1, collapsed: false }
+  const secondEvent = { ...project.events[0], id: 'e_2', name: 'Patch Window' }
+
+  test('accepts distinct ids across several tracks and events', () => {
+    const ok = { ...project, tracks: [...project.tracks, secondTrack], events: [...project.events, secondEvent] }
+    expect(validateProject(ok).events).toHaveLength(2)
+  })
+
+  test('rejects two tracks with the same id, naming the track id', () => {
+    const bad = { ...project, tracks: [...project.tracks, { ...secondTrack, id: 't_1' }] }
+    try {
+      validateProject(bad)
+      throw new Error('expected a ValidationError')
+    } catch (error) {
+      expect(error).toBeInstanceOf(ValidationError)
+      expect((error as ValidationError).message).toMatch(/duplicate track id "t_1"/)
+      expect((error as ValidationError).field).toBe('id')
+    }
+  })
+
+  test('rejects two events with the same id, naming the event id', () => {
+    const bad = { ...project, events: [...project.events, { ...secondEvent, id: 'e_1' }] }
+    try {
+      validateProject(bad)
+      throw new Error('expected a ValidationError')
+    } catch (error) {
+      expect(error).toBeInstanceOf(ValidationError)
+      expect((error as ValidationError).message).toMatch(/duplicate event id "e_1"/)
+      expect((error as ValidationError).field).toBe('id')
+    }
+  })
+
+  test('an event id may equal a track id: they are different namespaces', () => {
+    const ok = { ...project, events: [{ ...project.events[0], id: 't_1' }] }
+    expect(validateProject(ok).events[0].id).toBe('t_1')
+  })
+})

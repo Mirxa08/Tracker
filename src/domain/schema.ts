@@ -142,14 +142,30 @@ export function validateProject(value: unknown): Project {
     throw new ValidationError('theme', 'settings.theme must be dark, light or system')
   }
   const tracks = arr(raw, 'tracks').map(validateTrack)
-  const trackIds = new Set(tracks.map((t) => t.id))
+  const trackIds = new Set<string>()
+  for (const t of tracks) {
+    if (trackIds.has(t.id)) throw new ValidationError('id', `duplicate track id "${t.id}"`)
+    trackIds.add(t.id)
+  }
+  // Validated in the same order as before (project fields, then events) so which error
+  // surfaces first for a file with several faults does not change.
+  const id = str(raw, 'id', 'project id')
+  const name = str(raw, 'name')
+  const createdAt = iso(raw, 'createdAt')
+  const updatedAt = iso(raw, 'updatedAt')
+  const events = arr(raw, 'events').map((e) => validateEvent(e, trackIds))
+  const eventIds = new Set<string>()
+  for (const e of events) {
+    if (eventIds.has(e.id)) throw new ValidationError('id', `duplicate event id "${e.id}"`)
+    eventIds.add(e.id)
+  }
   return {
-    id: str(raw, 'id', 'project id'),
-    name: str(raw, 'name'),
-    createdAt: iso(raw, 'createdAt'),
-    updatedAt: iso(raw, 'updatedAt'),
+    id,
+    name,
+    createdAt,
+    updatedAt,
     tracks,
-    events: arr(raw, 'events').map((e) => validateEvent(e, trackIds)),
+    events,
     settings: { theme },
   }
 }
