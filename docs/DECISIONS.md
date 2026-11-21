@@ -304,3 +304,46 @@ outright in browsers which block prompts.
 The gutter and canvas are separate columns whose rows must align. They are driven from one shared
 row height so they cannot drift, and the browser measured a difference of zero at every row in
 both the expanded and collapsed states.
+
+## 46 — The effects core is loaded by a document-relative path
+
+Loading it with `%BASE_URL%` was the careful choice and it was half wrong. The build came out
+right (`/Tracker/sakuga-vfx/core.js`), but Vite's dev server prepends the base a *second* time to
+a root-absolute `src`, so locally the tag resolved to `/Tracker/Tracker/sakuga-vfx/core.js` and
+quietly 404'd. `window.SakugaFX` was undefined for the whole of development — the exact inverse
+of the production-only 404 the `%BASE_URL%` existed to prevent, and the reason the anime layer
+looked dead when it was in fact fine on the deployed site.
+
+`./sakuga-vfx/core.js` resolves against the document and is correct in both. The vendor test pins
+that spelling and records why.
+
+## Browser verification, from a deleted database
+
+The check that had been skipped twice was finally run against genuinely empty storage.
+
+A brand-new visitor gets the **Example timeline**: two tracks (Banners, Events), five event bars
+with countdown badges, and the now-line crossing a running one. Nothing is stuck and nothing is
+empty.
+
+Every effect was confirmed by counting non-transparent canvas pixels, which is zero when the page
+is idle:
+
+| Action | Painted |
+|---|---|
+| Primary button press | squash `matrix(1.099, 0, 0, 0.82, 0, 0)` + 13,549 px burst |
+| Typing in a field | 581 px of dust |
+| The "Include images" checkbox | 4,649 px slash |
+| Dragging a bar | 1,786 px of speed lines |
+| Dropping it | 3,622 px impact ring |
+
+The canvas is `position: fixed`, `pointer-events: none`, and sits at the core's own z-index far
+above our scale, so it cannot swallow a click.
+
+**Reduced motion:** the app's gate lives in `fx.ts`, so it was driven directly — with a core
+reporting `calm`, the same two actions painted **0 px** and applied no transform, and the app
+stayed completely usable. The core's `calm` is a read-only getter over a live `matchMedia`
+reading, so it cannot be flipped from the page; the media query itself is covered by the unit
+tests rather than by the browser.
+
+**375px:** no horizontal page scroll, the 190px gutter holds, the timeline scrolls inside its own
+column. Cramped, but correct.
