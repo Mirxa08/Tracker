@@ -23,15 +23,17 @@ function seeded(): Project {
 function renderGutter(project: Project, props: Partial<Parameters<typeof TrackGutter>[0]> = {}) {
   const onToggleCollapse = vi.fn()
   const onAdd = vi.fn()
+  const onRename = vi.fn()
   render(
     <TrackGutter
       project={project}
       onAdd={onAdd}
       onToggleCollapse={onToggleCollapse}
+      onRename={onRename}
       {...props}
     />,
   )
-  return { onToggleCollapse, onAdd }
+  return { onToggleCollapse, onAdd, onRename }
 }
 
 test('the chevron asks for the opposite of the track\'s current state', async () => {
@@ -77,4 +79,86 @@ test('the add-event button still reports its own track', async () => {
   const { onAdd } = renderGutter(project)
   await userEvent.click(screen.getByRole('button', { name: 'Add event to Combat' }))
   expect(onAdd).toHaveBeenCalledWith(project.tracks[1].id)
+})
+
+// ------------------------------------------------------------------------------ rename ----
+
+async function startRename(name = 'Banners') {
+  await userEvent.click(screen.getByRole('button', { name: `Rename ${name}` }))
+  return screen.getByRole('textbox', { name: 'Track name' })
+}
+
+test('the pencil turns the label into a field holding the current name', async () => {
+  renderGutter(seeded())
+  const input = await startRename()
+  expect(input).toHaveValue('Banners')
+  expect(input).toHaveFocus()
+})
+
+test('Enter commits the new name', async () => {
+  const project = seeded()
+  const { onRename } = renderGutter(project)
+  const input = await startRename()
+  await userEvent.clear(input)
+  await userEvent.type(input, 'Character Banners{Enter}')
+  expect(onRename).toHaveBeenCalledWith(project.tracks[0].id, 'Character Banners')
+  expect(screen.queryByRole('textbox', { name: 'Track name' })).toBeNull()
+})
+
+test('Escape cancels and restores the previous name', async () => {
+  const { onRename } = renderGutter(seeded())
+  const input = await startRename()
+  await userEvent.clear(input)
+  await userEvent.type(input, 'Something else{Escape}')
+  expect(onRename).not.toHaveBeenCalled()
+  expect(screen.getByText('Banners')).toBeInTheDocument()
+  // The field is gone, and the blur that follows must not commit what Escape discarded.
+  expect(screen.queryByRole('textbox', { name: 'Track name' })).toBeNull()
+})
+
+test('losing focus commits', async () => {
+  const project = seeded()
+  const { onRename } = renderGutter(project)
+  const input = await startRename()
+  await userEvent.clear(input)
+  await userEvent.type(input, 'Weapons')
+  await userEvent.tab()
+  expect(onRename).toHaveBeenCalledWith(project.tracks[0].id, 'Weapons')
+})
+
+test('an empty name is refused and the old one kept, on Enter and on blur', async () => {
+  const { onRename } = renderGutter(seeded())
+  const first = await startRename()
+  await userEvent.clear(first)
+  await userEvent.type(first, '{Enter}')
+  expect(onRename).not.toHaveBeenCalled()
+  expect(screen.getByText('Banners')).toBeInTheDocument()
+
+  const second = await startRename()
+  await userEvent.clear(second)
+  await userEvent.tab()
+  expect(onRename).not.toHaveBeenCalled()
+  expect(screen.getByText('Banners')).toBeInTheDocument()
+})
+
+test('a whitespace-only name is refused, and a padded one is trimmed', async () => {
+  const project = seeded()
+  const { onRename } = renderGutter(project)
+  const blank = await startRename()
+  await userEvent.clear(blank)
+  await userEvent.type(blank, '   {Enter}')
+  expect(onRename).not.toHaveBeenCalled()
+  expect(screen.getByText('Banners')).toBeInTheDocument()
+
+  const padded = await startRename()
+  await userEvent.clear(padded)
+  await userEvent.type(padded, '  Weapons  {Enter}')
+  expect(onRename).toHaveBeenCalledExactlyOnceWith(project.tracks[0].id, 'Weapons')
+})
+
+test('committing the name unchanged asks for nothing', async () => {
+  const { onRename } = renderGutter(seeded())
+  const input = await startRename()
+  await userEvent.type(input, '{Enter}')
+  expect(onRename).not.toHaveBeenCalled()
 })

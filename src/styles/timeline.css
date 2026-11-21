@@ -135,11 +135,46 @@
 .track-row { position: relative; }
 
 .track-label {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 0 8px;
   font-weight: 500;
+}
+
+/* The secondary controls (rename, delete) are out of the row's layout until it is hovered or
+   holds focus: the gutter is 190px and the name needs that width. Clipped rather than
+   display:none, because a display:none button cannot be focused — and then no keyboard user
+   could ever reach a reveal that only :focus-within triggers. */
+.track-label__actions {
+  display: flex;
+  flex: none;
+  gap: 4px;
+}
+
+.track-label:not(:hover):not(:focus-within) .track-label__actions {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Two sizes down from the standalone IconButton: five controls and a name do not fit a
+   190px gutter at 28px each. Specific enough (two classes) to beat the component's own
+   single-class Tailwind size utility whichever order the sheets land in. */
+.track-label .sk-icon-btn {
+  width: 22px;
+  height: 22px;
+}
+
+/* Short enough for the slim collapsed row as well as the full one. */
+.track-label .track-label__editor {
+  height: 24px;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 /* The slim row: the controls are the tallest thing in it, so it loses the padding rather

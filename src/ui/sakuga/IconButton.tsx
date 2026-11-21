@@ -1,7 +1,7 @@
-import type { ComponentPropsWithoutRef } from 'react'
+import type { ComponentPropsWithRef } from 'react'
 import '../../styles/sakuga.css'
 
-export type IconButtonProps = ComponentPropsWithoutRef<'button'> & {
+export type IconButtonProps = ComponentPropsWithRef<'button'> & {
   /** Required: the glyph is decorative, so the accessible name can only come from here. */
   label: string
 }

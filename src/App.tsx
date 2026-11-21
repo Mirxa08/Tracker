@@ -1,5 +1,7 @@
 import { useRef } from 'react'
-import { addTrack, createProject, setTheme, setTrackCollapsed, updateEvent } from './domain/project'
+import {
+  addTrack, createProject, renameTrack, setTheme, setTrackCollapsed, updateEvent,
+} from './domain/project'
 import { buildExport, exportFileName, importFromJson, serializeExport } from './persistence/transfer'
 import { StoreProvider, useStore } from './state/StoreProvider'
 import { currentProject } from './state/reducer'
@@ -105,6 +107,9 @@ function Workspace() {
             onSelectEvent={(eventId) => dispatch({ type: 'selectEvent', eventId })}
             onToggleCollapse={(trackId, collapsed) => {
               dispatch({ type: 'applyProject', project: setTrackCollapsed(project, trackId, collapsed) })
+            }}
+            onRenameTrack={(trackId, name) => {
+              dispatch({ type: 'applyProject', project: renameTrack(project, trackId, name) })
             }}
             onChangeDates={(eventId, dates) => {
               try {
