@@ -48,6 +48,9 @@ export function TrackGutter({
   onRename,
   onReorder,
   onDelete,
+  addingTrack,
+  onAddingTrackChange,
+  onCreateTrack,
 }: {
   project: Project
   onAdd: (trackId: string) => void
@@ -55,6 +58,9 @@ export function TrackGutter({
   onRename: (trackId: string, name: string) => void
   onReorder: (orderedIds: string[]) => void
   onDelete: (trackId: string) => void
+  addingTrack: boolean
+  onAddingTrackChange: (open: boolean) => void
+  onCreateTrack: (name: string) => void
 }) {
   const gutter = useRef<HTMLDivElement>(null)
   const handles = useRef(new Map<string, HTMLButtonElement | null>())
@@ -152,6 +158,7 @@ export function TrackGutter({
           onHandlePointerDown={onHandlePointerDown(index)}
         />
       ))}
+      <AddTrack open={addingTrack} onOpenChange={onAddingTrackChange} onCreate={onCreateTrack} />
       {confirmedTrack && (
         <ConfirmDelete
           track={confirmedTrack}
@@ -299,7 +306,7 @@ function NameEditor({
 }: {
   value: string
   onChange: (value: string) => void
-  onCommit: (value: string) => void
+  onCommit: (value: string, reason: 'enter' | 'blur') => void
   onCancel: () => void
 }) {
   return (
@@ -312,14 +319,67 @@ function NameEditor({
       onKeyDown={(e) => {
         if (e.key === 'Enter') {
           e.preventDefault()
-          onCommit(e.currentTarget.value)
+          onCommit(e.currentTarget.value, 'enter')
         } else if (e.key === 'Escape') {
           e.preventDefault()
           onCancel()
         }
       }}
-      onBlur={(e) => onCommit(e.target.value)}
+      onBlur={(e) => onCommit(e.target.value, 'blur')}
     />
+  )
+}
+
+/**
+ * Creating a track. This replaces a `window.prompt`, which returns null and throws uncaught in
+ * browsers and embedded webviews that block prompts — so the one way to add a track could fail
+ * outright. Same rules as rename: Enter commits, Escape discards, blur commits, and a blank
+ * name creates nothing.
+ *
+ * `open` is the caller's, because the project bar's "Add track" button opens this same field
+ * rather than keeping a prompt of its own, and because it has to be reachable when there are
+ * no tracks at all and the gutter is not on screen.
+ */
+export function AddTrack({
+  open,
+  onOpenChange,
+  onCreate,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onCreate: (name: string) => void
+}) {
+  const [draft, setDraft] = useState('')
+  const close = () => {
+    setDraft('')
+    onOpenChange(false)
+  }
+  return (
+    <div className="track-add">
+      {open
+        ? (
+          <NameEditor
+            value={draft}
+            onChange={setDraft}
+            onCommit={(value, reason) => {
+              const trimmed = value.trim()
+              // Enter on an empty field leaves it open and waiting; clicking away closes it.
+              if (!trimmed) {
+                if (reason === 'blur') close()
+                return
+              }
+              close()
+              onCreate(trimmed)
+            }}
+            onCancel={close}
+          />
+        )
+        : (
+          // "New track", not "Add track": the project bar's button opens this same field, and
+          // two controls with one name is ambiguous to a screen reader and to a test.
+          <Button onClick={() => onOpenChange(true)}>New track</Button>
+        )}
+    </div>
   )
 }
 

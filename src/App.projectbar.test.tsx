@@ -42,11 +42,16 @@ async function exportedText(): Promise<string> {
 }
 
 test('a cold start can create a track from the project bar and it is saved', async () => {
-  const prompt = vi.spyOn(window, 'prompt').mockReturnValue('Banners')
+  // Overridden to throw, as a browser or webview that blocks prompts does: adding a track
+  // must not go anywhere near window.prompt.
+  const prompt = vi.spyOn(window, 'prompt').mockImplementation(() => {
+    throw new Error('prompt() is blocked in this context')
+  })
   const { unmount } = render(<App />)
   expect(await screen.findByText(/No tracks yet/)).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Add track' }))
-  expect(prompt).toHaveBeenCalledWith('Track name')
+  await userEvent.type(screen.getByRole('textbox', { name: 'Track name' }), 'Banners{Enter}')
+  expect(prompt).not.toHaveBeenCalled()
   expect(await screen.findByTestId('track-row')).toBeInTheDocument()
   expect(screen.queryByText(/No tracks yet/)).toBeNull()
   unmount() // flushes the debounced write
@@ -56,13 +61,16 @@ test('a cold start can create a track from the project bar and it is saved', asy
   })
 })
 
-test('cancelling or blanking the track prompt adds nothing', async () => {
-  const prompt = vi.spyOn(window, 'prompt').mockReturnValueOnce(null).mockReturnValueOnce('   ')
+test('cancelling or blanking the new track adds nothing', async () => {
   render(<App />)
   await screen.findByText(/No tracks yet/)
+
   await userEvent.click(screen.getByRole('button', { name: 'Add track' }))
+  await userEvent.type(screen.getByRole('textbox', { name: 'Track name' }), 'Banners{Escape}')
+  expect(screen.getByText(/No tracks yet/)).toBeInTheDocument()
+
   await userEvent.click(screen.getByRole('button', { name: 'Add track' }))
-  expect(prompt).toHaveBeenCalledTimes(2)
+  await userEvent.type(screen.getByRole('textbox', { name: 'Track name' }), '   {Enter}')
   expect(screen.getByText(/No tracks yet/)).toBeInTheDocument()
 })
 

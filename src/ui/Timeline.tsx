@@ -5,7 +5,7 @@ import { DAY_WIDTH, dayColumns, monthSpans, xForTime } from '../domain/time'
 import { EventBar } from './EventBar'
 import { HeaderBands } from './HeaderBands'
 import { NowLine } from './NowLine'
-import { TrackGutter } from './TrackGutter'
+import { AddTrack, TrackGutter } from './TrackGutter'
 import { useNow } from './useNow'
 import '../styles/timeline.css'
 
@@ -29,6 +29,9 @@ export function Timeline({
   onRenameTrack = noop,
   onReorderTracks = noop,
   onDeleteTrack = noop,
+  addingTrack = false,
+  onAddingTrackChange = noop,
+  onCreateTrack = noop,
   onChangeDates,
 }: {
   ref?: Ref<TimelineHandle>
@@ -39,6 +42,10 @@ export function Timeline({
   onRenameTrack?: (trackId: string, name: string) => void
   onReorderTracks?: (orderedIds: string[]) => void
   onDeleteTrack?: (trackId: string) => void
+  /** The add-track field is the caller's state: the project bar's button opens this one. */
+  addingTrack?: boolean
+  onAddingTrackChange?: (open: boolean) => void
+  onCreateTrack?: (name: string) => void
   onChangeDates?: (eventId: string, dates: { start: string; end: string }) => void
 }) {
   // The coarse minute tick is deliberate: it is only needed to roll the view over at
@@ -76,7 +83,16 @@ export function Timeline({
   useEffect(() => { scrollToNowRef.current('auto') }, [hasTracks, project.id])
 
   if (!hasTracks) {
-    return <p className="timeline__empty">No tracks yet — add your first track to start building this timeline.</p>
+    // The gutter is not rendered yet, so the add-track field is offered here instead:
+    // otherwise the only way to leave this state would be the project bar's button.
+    return (
+      <div className="timeline__empty">
+        <p className="timeline__empty-text">
+          No tracks yet — add your first track to start building this timeline.
+        </p>
+        <AddTrack open={addingTrack} onOpenChange={onAddingTrackChange} onCreate={onCreateTrack} />
+      </div>
+    )
   }
 
   return (
@@ -89,6 +105,9 @@ export function Timeline({
           onRename={onRenameTrack}
           onReorder={onReorderTracks}
           onDelete={onDeleteTrack}
+          addingTrack={addingTrack}
+          onAddingTrackChange={onAddingTrackChange}
+          onCreateTrack={onCreateTrack}
         />
         <div className="timeline__scroll">
           <div className="timeline__canvas" style={{ width }}>

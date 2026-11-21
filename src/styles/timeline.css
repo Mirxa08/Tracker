@@ -194,6 +194,22 @@
   white-space: nowrap;
 }
 
+/* Below the last row, and deliberately NOT a .track-label: it has no twin in the canvas, so
+   it must stay out of the rule that pairs the two columns' heights and out of the row
+   measurements a drag takes. */
+.track-add {
+  display: flex;
+  align-items: center;
+  height: var(--row-height);
+  padding: 0 8px;
+}
+
+.track-add .track-label__editor {
+  height: 24px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
 /* Short enough for the slim collapsed row as well as the full one. */
 .track-label .track-label__editor {
   height: 24px;
@@ -238,4 +254,12 @@
   white-space: nowrap;
 }
 
-.timeline__empty { padding: 32px; color: var(--muted); }
+.timeline__empty {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  padding: 32px;
+  color: var(--muted);
+}
+
+.timeline__empty-text { margin: 0; }

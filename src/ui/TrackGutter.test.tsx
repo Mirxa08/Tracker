@@ -29,6 +29,8 @@ function renderGutter(project: Project, props: Partial<Parameters<typeof TrackGu
   const onRename = vi.fn()
   const onReorder = vi.fn()
   const onDelete = vi.fn()
+  const onAddingTrackChange = vi.fn()
+  const onCreateTrack = vi.fn()
   render(
     <TrackGutter
       project={project}
@@ -37,10 +39,13 @@ function renderGutter(project: Project, props: Partial<Parameters<typeof TrackGu
       onRename={onRename}
       onReorder={onReorder}
       onDelete={onDelete}
+      addingTrack={false}
+      onAddingTrackChange={onAddingTrackChange}
+      onCreateTrack={onCreateTrack}
       {...props}
     />,
   )
-  return { onToggleCollapse, onAdd, onRename, onReorder, onDelete }
+  return { onToggleCollapse, onAdd, onRename, onReorder, onDelete, onAddingTrackChange, onCreateTrack }
 }
 
 /**
@@ -49,6 +54,7 @@ function renderGutter(project: Project, props: Partial<Parameters<typeof TrackGu
  */
 function Harness({ initial }: { initial: Project }) {
   const [project, setProject] = useState(initial)
+  const [adding, setAdding] = useState(false)
   return (
     <TrackGutter
       project={project}
@@ -57,6 +63,9 @@ function Harness({ initial }: { initial: Project }) {
       onRename={(id, name) => setProject((p) => renameTrack(p, id, name))}
       onReorder={(ids) => setProject((p) => reorderTracks(p, ids))}
       onDelete={(id) => setProject((p) => deleteTrack(p, id))}
+      addingTrack={adding}
+      onAddingTrackChange={setAdding}
+      onCreateTrack={(name) => setProject((p) => addTrack(p, name))}
     />
   )
 }
@@ -313,6 +322,77 @@ test('a cancelled drag drops the preview and changes nothing', () => {
   expect(names()).toEqual(['Banners', 'Combat', 'Patches'])
   expect(screen.getAllByTestId('track-label').map((el) => el.className).join(' '))
     .not.toContain('track-label--drop')
+})
+
+// --------------------------------------------------------------------------- add track ----
+
+test('the new-track affordance is a button until it is asked for, then a field', async () => {
+  const { onAddingTrackChange } = renderGutter(seeded())
+  expect(screen.queryByRole('textbox', { name: 'Track name' })).toBeNull()
+  await userEvent.click(screen.getByRole('button', { name: 'New track' }))
+  expect(onAddingTrackChange).toHaveBeenCalledWith(true)
+})
+
+test('the field takes focus, and Enter creates the track', async () => {
+  const { onCreateTrack } = renderGutter(seeded(), { addingTrack: true })
+  const input = screen.getByRole('textbox', { name: 'Track name' })
+  expect(input).toHaveFocus()
+  await userEvent.type(input, 'Weapons{Enter}')
+  expect(onCreateTrack).toHaveBeenCalledExactlyOnceWith('Weapons')
+})
+
+test('no window.prompt is reached by any of it', async () => {
+  const prompt = vi.spyOn(window, 'prompt')
+  render(<Harness initial={seeded()} />)
+  await userEvent.click(screen.getByRole('button', { name: 'New track' }))
+  await userEvent.type(screen.getByRole('textbox', { name: 'Track name' }), 'Weapons{Enter}')
+  expect(names()).toEqual(['Banners', 'Combat', 'Patches', 'Weapons'])
+  expect(prompt).not.toHaveBeenCalled()
+})
+
+test('a window.prompt that throws does not stop a track being added', async () => {
+  vi.spyOn(window, 'prompt').mockImplementation(() => {
+    throw new Error('prompt() is blocked in this context')
+  })
+  render(<Harness initial={seeded()} />)
+  await userEvent.click(screen.getByRole('button', { name: 'New track' }))
+  await userEvent.type(screen.getByRole('textbox', { name: 'Track name' }), 'Weapons{Enter}')
+  expect(names()).toEqual(['Banners', 'Combat', 'Patches', 'Weapons'])
+})
+
+test('Escape closes the field and creates nothing', async () => {
+  const { onCreateTrack, onAddingTrackChange } = renderGutter(seeded(), { addingTrack: true })
+  await userEvent.type(screen.getByRole('textbox', { name: 'Track name' }), 'Weapons{Escape}')
+  expect(onCreateTrack).not.toHaveBeenCalled()
+  expect(onAddingTrackChange).toHaveBeenCalledWith(false)
+})
+
+test('blur commits what is in the field', async () => {
+  const { onCreateTrack } = renderGutter(seeded(), { addingTrack: true })
+  await userEvent.type(screen.getByRole('textbox', { name: 'Track name' }), '  Weapons  ')
+  await userEvent.tab()
+  expect(onCreateTrack).toHaveBeenCalledExactlyOnceWith('Weapons')
+})
+
+test('an empty name creates nothing: Enter waits, clicking away gives up', async () => {
+  const { onCreateTrack, onAddingTrackChange } = renderGutter(seeded(), { addingTrack: true })
+  const input = screen.getByRole('textbox', { name: 'Track name' })
+  await userEvent.type(input, '   {Enter}')
+  expect(onCreateTrack).not.toHaveBeenCalled()
+  expect(onAddingTrackChange).not.toHaveBeenCalled()
+  expect(input).toBeInTheDocument()
+
+  await userEvent.tab()
+  expect(onCreateTrack).not.toHaveBeenCalled()
+  expect(onAddingTrackChange).toHaveBeenCalledWith(false)
+})
+
+test('the field is not one of the rows the two columns have to line up', () => {
+  renderGutter(seeded(), { addingTrack: true })
+  // .track-label is the shared-height selector and what a drag measures; the add row is
+  // neither, because the canvas has nothing opposite it.
+  expect(screen.getAllByTestId('track-label')).toHaveLength(3)
+  expect(document.querySelector('.track-add')).not.toHaveClass('track-label')
 })
 
 // ------------------------------------------------------------------------------ delete ----

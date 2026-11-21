@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import {
   addTrack, createProject, renameTrack, reorderTracks, setTheme, setTrackCollapsed, updateEvent,
 } from './domain/project'
@@ -20,6 +20,7 @@ function Workspace() {
   const project = currentProject(state)
   const selected = project?.events.find((e) => e.id === state.selectedEventId) ?? null
   const timeline = useRef<TimelineHandle>(null)
+  const [addingTrack, setAddingTrack] = useState(false)
   // Before the first project loads there is nothing to read a setting from, and dark is the
   // default, so that is what the document carries until one arrives.
   const theme = project?.settings.theme ?? 'dark'
@@ -32,10 +33,11 @@ function Workspace() {
     const created = createProject('New project')
     dispatch({ type: 'loaded', projects: [...state.projects, created], currentId: created.id })
   }
-  const addTrackPrompt = () => {
+  // No window.prompt: it returns null and throws uncaught where prompts are blocked, and it
+  // was the only way to add a track. The field lives in the gutter (or, with no tracks yet, in
+  // the empty state); this is only whether it is open, so the project bar's button can open it.
+  const createTrack = (name: string) => {
     if (!project) return
-    const name = window.prompt('Track name')?.trim()
-    if (!name) return
     dispatch({ type: 'applyProject', project: addTrack(project, name) })
   }
   const exportProject = async (opts: { includeImages: boolean }) => {
@@ -85,7 +87,7 @@ function Workspace() {
         }}
         onSelect={(projectId) => dispatch({ type: 'selectProject', projectId })}
         onCreate={create}
-        onAddTrack={addTrackPrompt}
+        onAddTrack={() => setAddingTrack(true)}
         onAddEvent={() => dispatch({ type: 'openAdd' })}
         onImport={importFile}
         onExport={exportProject}
@@ -116,6 +118,9 @@ function Workspace() {
             }}
             // The reducer's own action, which records the undo entry the status line shows.
             onDeleteTrack={(trackId) => dispatch({ type: 'deleteTrack', trackId })}
+            addingTrack={addingTrack}
+            onAddingTrackChange={setAddingTrack}
+            onCreateTrack={createTrack}
             onChangeDates={(eventId, dates) => {
               try {
                 dispatch({ type: 'applyProject', project: updateEvent(project, eventId, dates) })
