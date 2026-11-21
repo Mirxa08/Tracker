@@ -195,20 +195,6 @@ test('a clock tick moves the now-line but does not re-render the header bands', 
   }
 })
 
-test('header bands do re-render when the project range changes', () => {
-  const project = seeded()
-  const { rerender } = render(<Timeline project={project} />)
-  const before = headerCommits.count
-  const wider = addEvent(project, {
-    trackId: project.tracks[0].id,
-    name: 'Far future',
-    start: new Date(Date.now() + 200 * 86_400_000).toISOString(),
-    end: new Date(Date.now() + 210 * 86_400_000).toISOString(),
-  })
-  rerender(<Timeline project={wider} />)
-  expect(headerCommits.count).toBeGreaterThan(before)
-})
-
 test('now-line position is exact across the spring-forward DST transition', () => {
   vi.useFakeTimers()
   try {

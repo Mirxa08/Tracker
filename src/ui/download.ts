@@ -7,5 +7,8 @@ export function downloadText(filename: string, text: string): void {
   document.body.appendChild(anchor)
   anchor.click()
   anchor.remove()
-  URL.revokeObjectURL(url)
+  // click() only *schedules* the download; the browser fetches the blob afterwards. Revoking
+  // in the same task tears the URL down before that fetch happens, and the download fails
+  // with ERR_FILE_NOT_FOUND. A macrotask later the fetch has started and the URL can go.
+  setTimeout(() => URL.revokeObjectURL(url), 0)
 }
