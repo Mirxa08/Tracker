@@ -93,3 +93,44 @@ test('returns null when there is no image id', () => {
   expect(result.current).toBeNull()
   expect(lookup).not.toHaveBeenCalled()
 })
+
+test('a rejected lookup yields no url, does not throw, and leaves no unhandled rejection', async () => {
+  // The guarantee must come from the hook's own .catch, not from the runner's exit code.
+  const nodeProcess = (globalThis as unknown as {
+    process: {
+      on(event: 'unhandledRejection', listener: (reason: unknown) => void): void
+      off(event: 'unhandledRejection', listener: (reason: unknown) => void): void
+    }
+  }).process
+  const unhandled: unknown[] = []
+  const onUnhandled = (reason: unknown) => { unhandled.push(reason) }
+  nodeProcess.on('unhandledRejection', onUnhandled)
+  try {
+    lookup.mockRejectedValueOnce(new Error('idb exploded'))
+    const rendered: Array<string | null> = []
+    const { result } = renderHook(() => {
+      const url = useImageUrl('broken')
+      rendered.push(url)
+      return url
+    })
+    await act(async () => {})
+    // Let Node run its unhandled-rejection check, which happens after the microtask queue drains.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(result.current).toBeNull()
+    expect(rendered.every((url) => url === null)).toBe(true)
+    expect(revoke).not.toHaveBeenCalled()
+    expect(unhandled).toEqual([])
+  } finally {
+    nodeProcess.off('unhandledRejection', onUnhandled)
+  }
+})
+
+test('after a rejected lookup the next id still resolves normally', async () => {
+  lookup.mockRejectedValueOnce(new Error('idb exploded')).mockResolvedValueOnce('blob:ok')
+  const { result, rerender } = renderHook(({ id }) => useImageUrl(id), { initialProps: { id: 'broken' } })
+  await act(async () => {})
+  expect(result.current).toBeNull()
+  rerender({ id: 'fine' })
+  await act(async () => {})
+  expect(result.current).toBe('blob:ok')
+})

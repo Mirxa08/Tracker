@@ -4,6 +4,21 @@ import {
 
 const viewStart = new Date(2026, 10, 1) // 1 November 2026, local
 
+// vite.config.ts pins TZ to Europe/London so offset bugs surface. That pin was once inert
+// because every datetime fixture sat in a month when London is UTC. If it is removed or
+// changed, this fails loudly instead of the suite quietly losing its teeth.
+test('the test run is pinned to Europe/London, where July is BST (UTC+1)', () => {
+  // No @types/node in this project, so reach the Node global through a typed cast.
+  const env = (globalThis as unknown as { process: { env: Record<string, string | undefined> } }).process.env
+  expect(env.TZ).toBe('Europe/London')
+  expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe('Europe/London')
+  const midsummer = new Date('2026-07-01T12:00:00.000Z')
+  expect(midsummer.getTimezoneOffset()).toBe(-60)
+  expect(midsummer.getHours()).toBe(13)
+  // And winter is genuinely UTC, so the two seasons really do differ.
+  expect(new Date('2026-01-15T12:00:00.000Z').getTimezoneOffset()).toBe(0)
+})
+
 test('startOfDay strips the time of day', () => {
   expect(startOfDay(new Date(2026, 10, 5, 13, 45, 30)).getTime())
     .toBe(new Date(2026, 10, 5).getTime())
