@@ -49,30 +49,28 @@
 
 /* The faint Sakuga grid texture, pitched to the day columns (DAY_WIDTH, 34px) rather than
    Sakuga's own 20px: a vertical line that lands anywhere but a day boundary fights the day
-   band above it, and at 34px the texture reads as the calendar it belongs to. The horizontal
-   pitch is the row pitch (--row-height + --row-gap) for the same reason. */
+   band above it, and at 34px the texture reads as the calendar it belongs to.
+   VERTICAL ONLY. The horizontal lines used to be here too, pitched to
+   calc(--row-height + --row-gap) — a single fixed pitch, which is correct only while every
+   row is that tall. Collapse one and it is 28px instead of 40, and from there down every
+   texture line sat a few pixels off the row it was supposed to underline. The rows
+   themselves were always aligned; it was the decoration that drifted. Each row now draws
+   its own line (see .track-row below), so the pitch is whatever that row's height actually
+   is and there is nothing left to drift. */
 .timeline__canvas {
   position: relative;
-  background-image:
-    linear-gradient(90deg, rgb(255 255 255 / 3%) 1px, transparent 1px),
-    linear-gradient(rgb(255 255 255 / 2%) 1px, transparent 1px);
-  background-size:
-    var(--day-width) 100%,
-    100% calc(var(--row-height) + var(--row-gap));
+  background-image: linear-gradient(90deg, rgb(255 255 255 / 3%) 1px, transparent 1px);
+  background-size: var(--day-width) 100%;
   background-position: 0 var(--header-height);
 }
 
 :root[data-theme='light'] .timeline__canvas {
-  background-image:
-    linear-gradient(90deg, rgb(0 0 0 / 5%) 1px, transparent 1px),
-    linear-gradient(rgb(0 0 0 / 3%) 1px, transparent 1px);
+  background-image: linear-gradient(90deg, rgb(0 0 0 / 5%) 1px, transparent 1px);
 }
 
 @media (prefers-color-scheme: light) {
   :root:not([data-theme='dark']) .timeline__canvas {
-    background-image:
-      linear-gradient(90deg, rgb(0 0 0 / 5%) 1px, transparent 1px),
-      linear-gradient(rgb(0 0 0 / 3%) 1px, transparent 1px);
+    background-image: linear-gradient(90deg, rgb(0 0 0 / 5%) 1px, transparent 1px);
   }
 }
 
@@ -133,6 +131,29 @@
 }
 
 .track-row { position: relative; }
+
+/*
+ * The texture's horizontal line, one per row, drawn at the row's own top edge. DECORATION
+ * ONLY: this rule must never gain height, margin, padding, border or anything else that
+ * changes the box, because .track-row's box is half of the pair above and a change here
+ * that the gutter's .track-label did not get would misalign the two columns. That is why
+ * it is a background and not a border-top. It names .track-row alone for the same reason
+ * the height rules name both: the gutter has no texture to underline, so giving the label
+ * this line would paint it twice.
+ */
+.track-row {
+  background-image: linear-gradient(rgb(255 255 255 / 2%) 1px, transparent 1px);
+}
+
+:root[data-theme='light'] .track-row {
+  background-image: linear-gradient(rgb(0 0 0 / 3%) 1px, transparent 1px);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) .track-row {
+    background-image: linear-gradient(rgb(0 0 0 / 3%) 1px, transparent 1px);
+  }
+}
 
 .track-label {
   position: relative;
@@ -261,12 +282,23 @@
   white-space: nowrap;
 }
 
+/* The one thing a visitor with no tracks sees, so it is a panel with a heading, a line of
+   explanation and a primary action, not a stray sentence. Its surface and radius come from
+   the Sakuga Panel; this is the layout only. */
 .timeline__empty {
   display: grid;
   justify-items: start;
-  gap: 8px;
-  padding: 32px;
-  color: var(--muted);
+  gap: 10px;
+  margin: 0 12px 12px;
+  padding: 28px 24px;
+  max-width: 62ch;
 }
 
-.timeline__empty-text { margin: 0; }
+.timeline__empty-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.timeline__empty-text { margin: 0; color: var(--muted); }

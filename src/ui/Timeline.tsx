@@ -6,6 +6,7 @@ import { EventBar } from './EventBar'
 import { HeaderBands } from './HeaderBands'
 import { NowLine } from './NowLine'
 import { AddTrack, TrackGutter } from './TrackGutter'
+import { Panel } from './sakuga'
 import { useNow } from './useNow'
 import '../styles/timeline.css'
 
@@ -89,12 +90,21 @@ export function Timeline({
     // The gutter is not rendered yet, so the add-track field is offered here instead:
     // otherwise the only way to leave this state would be the project bar's button.
     return (
-      <div className="timeline__empty">
+      <Panel as="section" className="timeline__empty" aria-label="No tracks yet">
+        <h2 className="timeline__empty-title">No tracks yet</h2>
         <p className="timeline__empty-text">
-          No tracks yet — add your first track to start building this timeline.
+          A track is one row of this timeline — a banner schedule, a run of events, a
+          release cadence. Add one, then put events on it and they appear as bars against
+          the day grid, with a line marking now and a countdown on whatever is still
+          running.
         </p>
-        <AddTrack open={addingTrack} onOpenChange={onAddingTrackChange} onCreate={onCreateTrack} />
-      </div>
+        <AddTrack
+          open={addingTrack}
+          onOpenChange={onAddingTrackChange}
+          onCreate={onCreateTrack}
+          prominent
+        />
+      </Panel>
     )
   }
 

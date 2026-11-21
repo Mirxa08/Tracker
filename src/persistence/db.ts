@@ -6,10 +6,16 @@ export type ImageRecord = { id: string; blob: Blob; width: number; height: numbe
 interface TrackerDB extends DBSchema {
   projects: { key: string; value: Project }
   images: { key: string; value: ImageRecord }
+  /** Small named facts about this installation, not about any one project. */
+  meta: { key: string; value: boolean }
 }
 
 const DB_NAME = 'tracker'
-const DB_VERSION = 1
+/**
+ * 2 added the `meta` store. The upgrade only ever creates a store it cannot find, so an
+ * existing database at version 1 gains `meta` and keeps every project and image in it.
+ */
+const DB_VERSION = 2
 
 export class StorageError extends Error {
   isQuota: boolean
@@ -41,6 +47,8 @@ export function openDb(): Promise<IDBPDatabase<TrackerDB>> {
       upgrade(db) {
         if (!db.objectStoreNames.contains('projects')) db.createObjectStore('projects', { keyPath: 'id' })
         if (!db.objectStoreNames.contains('images')) db.createObjectStore('images', { keyPath: 'id' })
+        // No keyPath: the value is a bare boolean, keyed by the name passed in.
+        if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta')
       },
       terminated() {
         dbPromise = null
@@ -107,4 +115,24 @@ export async function getImage(id: string): Promise<ImageRecord | undefined> {
 export async function deleteImage(id: string): Promise<void> {
   const db = await openDb()
   await db.delete('images', id)
+}
+
+/**
+ * A named flag about this installation. Used for "the example project has been offered
+ * once": it must survive the user deleting everything, or demo content would come back
+ * every time the app was opened, which is the most irritating thing a demo can do.
+ *
+ * Absent reads as false, so a fresh database and a flag never written are the same thing.
+ */
+export async function getFlag(name: string): Promise<boolean> {
+  return (await (await openDb()).get('meta', name)) ?? false
+}
+
+export async function setFlag(name: string, value: boolean): Promise<void> {
+  try {
+    const db = await openDb()
+    await db.put('meta', value, name)
+  } catch (error) {
+    wrapWriteError(error)
+  }
 }

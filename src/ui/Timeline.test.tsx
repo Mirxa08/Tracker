@@ -75,7 +75,8 @@ test('renders the now-line with a ticking clock', () => {
 
 test('shows an empty-state hint when a project has no tracks', () => {
   render(<Timeline project={createProject('Empty')} />)
-  expect(screen.getByText(/add your first track/i)).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'No tracks yet' })).toBeInTheDocument()
+  expect(screen.getByText(/A track is one row of this timeline/)).toBeInTheDocument()
 })
 
 test('now-line sits at the pixel position xForTime gives for the current instant', () => {

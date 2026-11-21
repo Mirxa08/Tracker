@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { addEvent, addTrack, createProject, projectBounds } from './domain/project'
 import { SCHEMA_VERSION, type Project } from './domain/schema'
 import { xForTime } from './domain/time'
-import { deleteProject, listProjects, openDb, putImage, putProject } from './persistence/db'
+import { deleteProject, listProjects, openDb, putImage, putProject, setFlag } from './persistence/db'
 import { buildExport, serializeExport } from './persistence/transfer'
 import { downloadText } from './ui/download'
 import { App } from './App'
@@ -17,6 +17,9 @@ beforeEach(async () => {
   for (const p of await listProjects()) await deleteProject(p.id)
   const images = await (await openDb()).getAllKeys('images')
   for (const k of images) await (await openDb()).delete('images', k)
+  // Installation flags outlive projects by design, so they have to be cleared explicitly
+  // or one test's first run decides the next test's.
+  await (await openDb()).clear('meta')
 })
 
 afterEach(() => {
@@ -47,6 +50,11 @@ test('a cold start can create a track from the project bar and it is saved', asy
   const prompt = vi.spyOn(window, 'prompt').mockImplementation(() => {
     throw new Error('prompt() is blocked in this context')
   })
+  // A returning visitor's cold start: the example project is offered once and this one has
+  // had it (and deleted it), so storage is empty AND stays empty — which is the state this
+  // test is about. A genuine first run seeds the example instead, and StoreProvider's own
+  // tests cover both.
+  await setFlag('exampleOffered', true)
   const { unmount } = render(<App />)
   expect(await screen.findByText(/No tracks yet/)).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Add track' }))

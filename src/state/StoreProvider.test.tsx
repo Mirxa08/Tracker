@@ -14,6 +14,8 @@ vi.mock('../persistence/db', async (importOriginal) => {
     putProject: vi.fn(actual.putProject),
     deleteProject: vi.fn(actual.deleteProject),
     deleteImage: vi.fn(actual.deleteImage),
+    getFlag: vi.fn(actual.getFlag),
+    setFlag: vi.fn(actual.setFlag),
   }
 })
 
@@ -38,7 +40,9 @@ function storage() {
 async function resetStorage() {
   const real = await storage()
   for (const p of await real.listProjects()) await real.deleteProject(p.id)
-  await (await real.openDb()).clear('images')
+  const db = await real.openDb()
+  await db.clear('images')
+  await db.clear('meta')
 }
 
 function writes() {
@@ -116,6 +120,107 @@ test('switching project inside the debounce window still saves the edited projec
   const real = await storage()
   expect((await real.getProject(project.id))?.tracks).toHaveLength(2)
   expect(await real.getProject(other.id)).toBeDefined()
+})
+
+// ---- First run ---------------------------------------------------------------------------
+// The visible half of "the app looked like it did nothing": with empty storage it used to
+// seed an EMPTY project, so a new visitor got a toolbar and the words "No tracks yet" —
+// no bars, no now-line crossing anything, nothing to animate.
+
+/**
+ * Mount with genuinely empty storage, as a brand-new visitor has. The seeding path awaits
+ * the flag, the write and the flag write, so it takes several microtask turns: flushed
+ * until a project arrives rather than a fixed number of times, which was flaky.
+ */
+async function firstRun() {
+  vi.mocked(db.listProjects).mockResolvedValue([])
+  const view = render(<StoreProvider><Probe /></StoreProvider>)
+  for (let turn = 0; turn < 20 && currentProject(latest) === null; turn += 1) {
+    await act(async () => {})
+  }
+  expect(currentProject(latest), 'the load never settled').not.toBeNull()
+  return view
+}
+
+test('a brand-new visitor gets the example project, with tracks and bars on screen', async () => {
+  await firstRun()
+  const seeded = currentProject(latest)!
+  expect(seeded.name).toBe('Example timeline')
+  expect(seeded.tracks.length).toBeGreaterThan(1)
+  expect(seeded.events.length).toBeGreaterThan(3)
+  // Something is running right now, which is what puts the now-line across a bar and a
+  // countdown badge on screen.
+  const now = Date.now()
+  expect(seeded.events.some((e) => Date.parse(e.start) <= now && Date.parse(e.end) > now)).toBe(true)
+  // And it reached storage, so a reload shows the same thing rather than a second example.
+  await act(async () => { await Promise.all(vi.mocked(db.putProject).mock.results.map((r) => r.value)) })
+  expect((await (await storage()).listProjects()).map((p) => p.name)).toEqual(['Example timeline'])
+})
+
+test('deleting everything and reloading does not hand the example back', async () => {
+  await firstRun()
+  await act(async () => {
+    await Promise.all(vi.mocked(db.putProject).mock.results.map((r) => r.value))
+    await Promise.all(vi.mocked(db.setFlag).mock.results.map((r) => r.value))
+  })
+  // The marker outlives the project, which is the whole point of keeping it out of the
+  // projects store: demo content that comes back after you delete it is infuriating.
+  expect(await (await storage()).getFlag('exampleOffered')).toBe(true)
+
+  cleanup()
+  vi.mocked(db.putProject).mockClear()
+  const real = await storage()
+  for (const p of await real.listProjects()) await real.deleteProject(p.id)
+
+  await firstRun()
+  const second = currentProject(latest)!
+  expect(second.name).toBe('My Timeline')
+  expect(second.tracks).toEqual([])
+  expect(second.events).toEqual([])
+})
+
+test('a flag that cannot be written costs a repeated example, not a lost project', async () => {
+  vi.mocked(db.setFlag).mockRejectedValueOnce(new db.StorageError('No room.'))
+  await firstRun()
+  expect(currentProject(latest)!.name).toBe('Example timeline')
+  expect(latest.error).toBeNull()
+  await act(async () => { await Promise.all(vi.mocked(db.putProject).mock.results.map((r) => r.value)) })
+  expect((await (await storage()).listProjects())).toHaveLength(1)
+})
+
+test('a flag that cannot be read is treated as a first run rather than failing the load', async () => {
+  vi.mocked(db.getFlag).mockRejectedValueOnce(new db.StorageError('Unreadable.'))
+  await firstRun()
+  expect(currentProject(latest)!.name).toBe('Example timeline')
+  expect(latest.error).toBeNull()
+})
+
+test('a private-browsing session, where storage never opens, still gets the example', async () => {
+  vi.mocked(db.listProjects).mockRejectedValueOnce(
+    new db.StorageError('Storage is unavailable in private browsing.'),
+  )
+  render(<StoreProvider><Probe /></StoreProvider>)
+  await act(async () => {})
+  const session = currentProject(latest)!
+  expect(session.name).toBe('Example timeline')
+  expect(session.events.length).toBeGreaterThan(3)
+  // It is told that nothing will be saved, and nothing is: not the project, not the flag.
+  expect(latest.error).toBe('Storage is unavailable in private browsing.')
+  act(() => { vi.advanceTimersByTime(DEBOUNCE_MS) })
+  expect(db.putProject).not.toHaveBeenCalled()
+  expect(db.setFlag).not.toHaveBeenCalled()
+  // ...and the session is usable: an edit applies, it just does not persist.
+  act(() => dispatch({ type: 'applyProject', project: addTrack(session, 'Combat') }))
+  expect(currentProject(latest)!.tracks).toHaveLength(3)
+  act(() => { vi.advanceTimersByTime(DEBOUNCE_MS) })
+  expect(db.putProject).not.toHaveBeenCalled()
+})
+
+test('storage that already holds a project is loaded untouched, example or not', async () => {
+  await mount([project])
+  expect(currentProject(latest)!.name).toBe('Timeline')
+  expect(db.getFlag).not.toHaveBeenCalled()
+  expect(db.setFlag).not.toHaveBeenCalled()
 })
 
 test('a failed storage open leaves an in-memory project so the session stays usable', async () => {

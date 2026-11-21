@@ -1,7 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useReducer, useRef, type ReactNode } from 'react'
+import { exampleProject } from '../domain/example'
 import { createProject } from '../domain/project'
 import type { Project } from '../domain/schema'
-import { deleteImage, deleteProject, listProjects, putProject, StorageError } from '../persistence/db'
+import {
+  deleteImage, deleteProject, getFlag, listProjects, putProject, setFlag, StorageError,
+} from '../persistence/db'
 import { currentProject, initialState, reducer, type Action, type State } from './reducer'
 
 type Store = { state: State; dispatch: (action: Action) => void }
@@ -9,6 +12,9 @@ type Store = { state: State; dispatch: (action: Action) => void }
 const StoreContext = createContext<Store | null>(null)
 
 const SAVE_DEBOUNCE_MS = 300
+
+/** "The example project has been offered once." See the load effect below. */
+const EXAMPLE_OFFERED = 'exampleOffered'
 
 function addImageIds(into: Set<string>, project: Project | null | undefined) {
   if (!project) return
@@ -26,13 +32,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     listProjects()
       .then(async (projects) => {
         if (cancelled) return
-        if (projects.length === 0) {
-          const first = createProject('My Timeline')
-          await putProject(first)
-          dispatch({ type: 'loaded', projects: [first], currentId: first.id })
-        } else {
+        if (projects.length > 0) {
           dispatch({ type: 'loaded', projects, currentId: projects[0].id })
+          return
         }
+        // Empty storage. On a GENUINE first run that means a new visitor, and an empty
+        // project would show them a toolbar and the words "No tracks yet" — which is
+        // exactly what happened, and why the app looked like it did nothing. Seed the
+        // example instead, so there is something on screen to understand and to react.
+        //
+        // Not on every empty load, though: somebody who deletes everything and reloads
+        // must not have it handed back. The flag says the example has been offered once,
+        // and it lives outside the projects store so deleting the project is final.
+        const offered = await getFlag(EXAMPLE_OFFERED).catch(() => false)
+        const first = offered ? createProject('My Timeline') : exampleProject()
+        await putProject(first)
+        // After the project, and tolerated if it fails: a flag that could not be written
+        // is a repeated example, which is a nuisance; a project that was not written is
+        // lost work.
+        if (!offered) await setFlag(EXAMPLE_OFFERED, true).catch(() => {})
+        if (cancelled) return
+        dispatch({ type: 'loaded', projects: [first], currentId: first.id })
       })
       .catch((error: unknown) => {
         persistent.current = false
@@ -40,8 +60,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ? error.message
           : 'Stored projects could not be opened.'
         dispatch({ type: 'error', message })
-        // Keep the session usable for this visit; nothing it does will be saved.
-        const session = createProject('My Timeline')
+        // Keep the session usable for this visit; nothing it does will be saved. There is
+        // no flag to read either, so this gets the example — a private-browsing visitor is
+        // a new visitor as far as anything here can tell, and an empty project would leave
+        // them with the same blank screen for the same reason.
+        const session = exampleProject()
         dispatch({ type: 'loaded', projects: [session], currentId: session.id })
       })
     return () => { cancelled = true }

@@ -4,6 +4,8 @@ import { Timeline } from './Timeline'
 // The custom properties the row rules read live on :root here, so the heights resolve to
 // real pixels rather than to the literal `var(...)` jsdom would otherwise hand back.
 import '../styles/theme.css'
+// jsdom computes no backgrounds, so the texture assertions read the declared rules.
+import timelineCss from '../styles/timeline.css?raw'
 
 function seeded() {
   const now = Date.now()
@@ -79,6 +81,48 @@ test('the cumulative offset of every row matches between the two columns, collap
     rowTop += parseFloat(row.height) + parseFloat(row.gap)
   }
   expect(labelTop).toBe(rowTop)
+})
+
+/*
+ * The texture used to drift. The day canvas drew the horizontal lines itself, pitched to a
+ * fixed calc(--row-height + --row-gap): correct only while every row is 40px, so below a
+ * collapsed 28px row every line sat a few pixels off the row it underlined. The rows were
+ * never misaligned — only the decoration was. Each row now draws its own line at its own
+ * top edge, which cannot drift whatever the heights are.
+ */
+test('the texture\'s horizontal lines are per row, not a fixed pitch the canvas assumes', () => {
+  // The canvas keeps only the vertical day lines, which ARE a fixed pitch — one per day
+  // column — and are unaffected by a row's height.
+  const canvasRule = /\.timeline__canvas\s*\{([^}]*)\}/.exec(timelineCss)![1]
+  expect(canvasRule).toMatch(/background-size:\s*var\(--day-width\) 100%/)
+  expect(canvasRule).not.toMatch(/--row-height/)
+  expect(canvasRule).not.toMatch(/--row-gap/)
+  // And the horizontal line belongs to the row, so its pitch is whatever that row's
+  // height actually is.
+  const rowRule = /\.track-row\s*\{\s*background-image:([^}]*)\}/.exec(timelineCss)
+  expect(rowRule).not.toBeNull()
+  expect(rowRule![1]).toMatch(/linear-gradient/)
+})
+
+test('the per-row texture is decoration only: it changes no part of the row\'s box', () => {
+  // A height, margin, padding or border added to .track-row alone would misalign the two
+  // columns, which is the one thing the rules above exist to prevent.
+  for (const block of [...timelineCss.matchAll(/\.track-row\s*\{([^}]*)\}/g)].map((m) => m[1])) {
+    expect(block).not.toMatch(/\b(height|margin|padding|border(?!-)|border-width|border-top|box-sizing)\s*:/)
+  }
+  // And the paired rule that DOES set the height still names both columns together.
+  expect(timelineCss).toMatch(/\.track-row,\s*\n?\s*\.track-label\s*\{[^}]*height:\s*var\(--row-height\)/)
+  expect(timelineCss).toMatch(/\.track-row--collapsed,\s*\n?\s*\.track-label--collapsed\s*\{[^}]*height:\s*var\(--row-collapsed-height\)/)
+})
+
+test('with no tracks the empty state is a panel with a heading and a primary action', () => {
+  render(<Timeline project={createProject('Empty')} />)
+  const panel = screen.getByRole('region', { name: 'No tracks yet' })
+  expect(panel).toHaveClass('sk-panel')
+  expect(screen.getByRole('heading', { name: 'No tracks yet' })).toBeInTheDocument()
+  // A line of explanation, not just a label: this is the only thing on the page.
+  expect(panel).toHaveTextContent(/A track is one row of this timeline/)
+  expect(screen.getByRole('button', { name: 'New track' })).toHaveClass('sk-btn--primary')
 })
 
 test('a collapsed track renders no event bars, and expanding brings them back', () => {

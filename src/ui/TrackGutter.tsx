@@ -347,10 +347,13 @@ export function AddTrack({
   open,
   onOpenChange,
   onCreate,
+  prominent = false,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   onCreate: (name: string) => void
+  /** Painted as the primary action: in the empty state it is the only thing to do. */
+  prominent?: boolean
 }) {
   const [draft, setDraft] = useState('')
   const close = () => {
@@ -384,7 +387,9 @@ export function AddTrack({
         : (
           // "New track", not "Add track": the project bar's button opens this same field, and
           // two controls with one name is ambiguous to a screen reader and to a test.
-          <Button onClick={() => onOpenChange(true)}>New track</Button>
+          <Button variant={prominent ? 'primary' : 'quiet'} onClick={() => onOpenChange(true)}>
+            New track
+          </Button>
         )}
     </div>
   )
