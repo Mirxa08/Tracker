@@ -138,8 +138,17 @@ export function TrackGutter({
           onHandlePointerDown={onHandlePointerDown(index)}
         />
       ))}
-      {/* Reordering is otherwise silent for anyone who cannot see the rows move. */}
-      <div className="track-gutter__live" role="status" aria-live="polite">{announcement}</div>
+      {/* Reordering is otherwise silent for anyone who cannot see the rows move. aria-live
+          without role="status": the app's undo line is the page's one status role, and a
+          second one would make "the status message" ambiguous to a screen reader and to a
+          test asking for it. */}
+      <div
+        className="track-gutter__live"
+        aria-live="polite"
+        data-testid="track-order-status"
+      >
+        {announcement}
+      </div>
     </div>
   )
 }

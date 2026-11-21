@@ -63,7 +63,10 @@ function names(): string[] {
 }
 
 function announcement(): string {
-  return screen.getByRole('status').textContent ?? ''
+  const live = screen.getByTestId('track-order-status')
+  // The announcement is worthless if it is not in a live region.
+  expect(live).toHaveAttribute('aria-live', 'polite')
+  return live.textContent ?? ''
 }
 
 test('the chevron asks for the opposite of the track\'s current state', async () => {
