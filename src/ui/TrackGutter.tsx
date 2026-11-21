@@ -271,13 +271,15 @@ function TrackLabel({
           {eventCount}
         </Badge>
       )}
-      <IconButton label={`Add event to ${track.name}`} onClick={() => onAdd(track.id)}>
-        +
-      </IconButton>
-      {/* Out of the row's layout until the row is hovered or holds focus — the gutter is
-          190px and the name needs the room — but clipped rather than removed, so these
-          stay focusable and tabbing to one reveals the cluster (timeline.css). */}
+      {/* Hidden until the row is hovered or holds focus, and then drawn OVER the right end of
+          the row rather than inside its layout: the gutter is 190px, and three controls taking
+          their own space would leave the name a few pixels wide at rest. Clipped rather than
+          removed, so they stay focusable and tabbing to one reveals the cluster
+          (timeline.css). */}
       <span className="track-label__actions">
+        <IconButton label={`Add event to ${track.name}`} onClick={() => onAdd(track.id)}>
+          +
+        </IconButton>
         <IconButton label={`Rename ${track.name}`} onClick={() => setDraft(track.name)}>
           {'✎'}
         </IconButton>

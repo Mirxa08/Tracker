@@ -143,20 +143,27 @@
   font-weight: 500;
 }
 
-/* The secondary controls (rename, delete) are out of the row's layout until it is hovered or
-   holds focus: the gutter is 190px and the name needs that width. Clipped rather than
-   display:none, because a display:none button cannot be focused — and then no keyboard user
-   could ever reach a reveal that only :focus-within triggers. */
+/* The row's controls (add event, rename, delete) appear only while it is hovered or holds
+   focus, and then paint OVER its right end rather than taking space in it: the gutter is
+   190px, and three buttons of their own width would leave the name a few pixels at rest.
+   Clipped rather than display:none, because a display:none button cannot be focused — and
+   then no keyboard user could ever reach a reveal that only :focus-within triggers. */
 .track-label__actions {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
   display: flex;
-  flex: none;
-  gap: 4px;
+  gap: 2px;
+  padding-left: 6px;
+  background: var(--bg);
+  border-radius: var(--r-sm);
 }
 
 .track-label:not(:hover):not(:focus-within) .track-label__actions {
-  position: absolute;
   width: 1px;
   height: 1px;
+  padding: 0;
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
