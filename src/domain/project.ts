@@ -50,6 +50,12 @@ export function renameTrack(p: Project, trackId: string, name: string): Project 
   })
 }
 
+export function setTrackCollapsed(p: Project, trackId: string, collapsed: boolean): Project {
+  return touched(p, {
+    tracks: p.tracks.map((t) => (t.id === trackId ? { ...t, collapsed } : t)),
+  })
+}
+
 export function deleteTrack(p: Project, trackId: string): Project {
   return touched(p, {
     tracks: p.tracks.filter((t) => t.id !== trackId).map((t, i) => ({ ...t, order: i })),

@@ -1,6 +1,6 @@
 import { vi } from 'vitest'
 import {
-  createProject, addTrack, renameTrack, deleteTrack, reorderTracks,
+  createProject, addTrack, renameTrack, deleteTrack, reorderTracks, setTrackCollapsed,
   addEvent, updateEvent, deleteEvent, eventsForTrack, projectBounds,
 } from './project'
 
@@ -50,6 +50,7 @@ test('transforms do not mutate the input project', () => {
     renameTrack(p, trackId, 'Renamed'),
     deleteTrack(p, trackId),
     reorderTracks(p, [trackId]),
+    setTrackCollapsed(p, trackId, true),
     addEvent(p, { trackId, name: 'Second', start: '2026-12-01T00:00:00.000Z', end: '2026-12-02T00:00:00.000Z' }),
     updateEvent(p, eventId, { name: 'Renamed' }),
     deleteEvent(p, eventId),
@@ -67,6 +68,16 @@ test('renameTrack changes only the named track', () => {
   p = renameTrack(p, p.tracks[0].id, 'Character Banners')
   expect(p.tracks[0].name).toBe('Character Banners')
   expect(p.tracks[1].name).toBe('Combat')
+})
+
+test('setTrackCollapsed flips only the named track, both ways', () => {
+  let p = addTrack(createProject('P'), 'A')
+  p = addTrack(p, 'B')
+  expect(p.tracks.map((t) => t.collapsed)).toEqual([false, false])
+  const collapsed = setTrackCollapsed(p, p.tracks[0].id, true)
+  expect(collapsed.tracks.map((t) => t.collapsed)).toEqual([true, false])
+  const expanded = setTrackCollapsed(collapsed, collapsed.tracks[0].id, false)
+  expect(expanded.tracks.map((t) => t.collapsed)).toEqual([false, false])
 })
 
 test('deleteTrack also removes the events on it', () => {
