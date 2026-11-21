@@ -2,6 +2,7 @@
   position: fixed;
   inset: 0;
   background: rgb(0 0 0 / 55%);
+  backdrop-filter: blur(3px);
   display: grid;
   place-items: center;
   /* Above the timeline's whole scale (bars 10 ... corner 50, see timeline.css) and the
@@ -11,21 +12,48 @@
   padding: 16px;
 }
 
+/* Layout only: the radius, border and surface come from the Sakuga Panel this form renders
+   as, and the controls bring their own finish. Generic `.dialog input` rules used to live
+   here; they are gone on purpose, because an unlayered descendant rule beats the
+   components' own Tailwind utilities and would quietly undo their padding and type. */
 .dialog {
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 10px;
   padding: 20px;
   width: min(560px, 100%);
   max-height: 90vh;
   overflow: auto;
   display: grid;
-  gap: 12px;
+  gap: 14px;
+  box-shadow: 0 24px 60px -20px rgb(0 0 0 / 60%);
 }
 
-.dialog label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
-.dialog input, .dialog select { font: inherit; padding: 6px 8px; }
+.dialog__title { margin: 0; font-size: 18px; letter-spacing: -0.01em; }
+.dialog__error { margin: 0; color: var(--now); font-size: 13px; }
+
+/* Two short fields side by side; stacked once there is no room for both. */
+.dialog__dates { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 480px) {
+  .dialog__dates { grid-template-columns: 1fr; }
+}
+
+.dialog__notes {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 10px 12px 12px;
+  margin: 0;
+}
+.dialog__notes legend { color: var(--muted); font-size: 12px; padding: 0 4px; }
+
 .dialog__actions { display: flex; justify-content: flex-end; gap: 8px; }
+
 .notes table { width: 100%; border-collapse: collapse; }
-.notes th, .notes td { border: 1px solid var(--line); padding: 2px; }
-.notes input { width: 100%; border: 0; background: transparent; color: inherit; font: inherit; }
+.notes th, .notes td { border: 1px solid var(--border); padding: 2px; }
+.notes input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  border-radius: var(--r-sm);
+  padding: 2px 4px;
+}
+.notes__actions { display: flex; gap: 8px; margin-top: 10px; }

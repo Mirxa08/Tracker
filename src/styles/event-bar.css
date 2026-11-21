@@ -5,8 +5,13 @@
   height: var(--row-height);
   display: flex;
   align-items: center;
-  border: 0;
-  border-radius: 6px;
+  /* A 1px translucent border, the Sakuga surface edge. box-sizing is border-box globally, so
+     the bar's geometry (left/width from the day mapping) is unchanged by it. */
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: var(--r-md);
+  /* A soft outer glow in the event's own colour, at low alpha: it separates the bar from the
+     canvas without washing the track colours together. --bar-color is set inline by EventBar. */
+  box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--bar-color, transparent) 70%, transparent);
   padding: 0 10px;
   color: #fff;
   font: inherit;
@@ -17,13 +22,19 @@
   min-width: 8px;
 }
 
-.event-bar--ended { opacity: 0.55; }
+/* Both files style this element, and neither import order is guaranteed, so the bar's own
+   edge is pinned with the extra class rather than left to the cascade. */
+.event-bar.sk-spotlight { border-color: rgb(255 255 255 / 18%); }
 
-/* Not yet started: full strength, lighter fill (a white wash under the artwork and text). */
-.event-bar--upcoming::before {
-  content: '';
+.event-bar--ended { opacity: 0.55; box-shadow: none; }
+
+/* Not yet started: full strength, lighter fill (a white wash under the artwork and text).
+   A real element, not a ::before: the spotlight owns ::before and ::after, and an element
+   has only one of each. */
+.event-bar__wash {
   position: absolute;
   inset: 0;
+  border-radius: inherit;
   background: rgb(255 255 255 / 28%);
   z-index: 0;
   pointer-events: none;
@@ -38,6 +49,7 @@
   text-shadow: 0 1px 2px rgb(0 0 0 / 45%);
 }
 
+/* The artwork still bleeds in from the right under a gradient: the look the owner asked for. */
 .event-bar__image {
   position: absolute;
   inset: 0 0 0 auto;
@@ -50,16 +62,11 @@
   pointer-events: none;
 }
 
+/* Position only: the pill itself is the Sakuga Badge. */
 .event-bar__remaining {
   position: absolute;
   right: 6px;
   z-index: 3;
-  background: var(--surface);
-  color: var(--fg);
-  border-radius: 999px;
-  padding: 1px 7px;
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
 }
 
 .event-bar__handle {

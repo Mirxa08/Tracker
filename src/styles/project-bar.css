@@ -1,11 +1,27 @@
+/* Layout only. The finish (surface, radius, border, glow) comes from the Sakuga
+   SpotlightSurface this header renders as; the controls bring their own. */
 .project-bar {
   display: flex;
-  align-items: center;
+  align-items: end;
   flex-wrap: wrap;
-  gap: 8px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--line);
+  gap: 10px;
+  padding: 12px;
+  margin: 0 12px 12px;
 }
 
-.project-bar label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
-.project-bar button { font: inherit; padding: 5px 10px; }
+.project-bar__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.project-bar__project { min-width: 160px; }
+.project-bar__import { max-width: 220px; }
+
+.project-bar__images {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  /* Sits level with the controls, which carry a label above them. */
+  padding-bottom: 7px;
+}
+
+.project-bar__theme { margin-left: auto; padding-bottom: 5px; }

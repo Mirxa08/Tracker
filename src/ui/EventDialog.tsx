@@ -4,6 +4,7 @@ import type { Notes, Project } from '../domain/schema'
 import { storeImageFile } from '../persistence/images'
 import type { DialogState } from '../state/reducer'
 import { NotesTable } from './NotesTable'
+import { Button, Field, Input, Panel, Select } from './sakuga'
 import { fromLocalInputValue, toLocalInputValue } from './datetime'
 import '../styles/dialog.css'
 
@@ -17,8 +18,8 @@ export type EventDraft = {
   notes?: Notes
 }
 
-type Field = 'name' | 'track' | 'start' | 'end' | 'image'
-type FormError = { message: string; fields: Field[] }
+type FieldName = 'name' | 'track' | 'start' | 'end' | 'image'
+type FormError = { message: string; fields: FieldName[] }
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
@@ -65,9 +66,9 @@ export function EventDialog({
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
 
-  const fail = (message: string, ...fields: Field[]) => setError({ message, fields })
+  const fail = (message: string, ...fields: FieldName[]) => setError({ message, fields })
   // A message stays only while the field it blames is untouched; fixing that field clears it.
-  const touched = (field: Field) =>
+  const touched = (field: FieldName) =>
     setError((current) => (current && current.fields.includes(field) ? null : current))
 
   // Escape closes without saving. Tab stays inside the dialog, cycling at both ends, and the
@@ -143,54 +144,68 @@ export function EventDialog({
     onSubmit(draft)
   }
 
+  // One message at a time, shown in the alert above; the blamed fields are marked invalid
+  // rather than each repeating the text.
+  const blamed = (field: FieldName) => error?.fields.includes(field) ?? false
+
   return (
     <div className="dialog__backdrop" role="dialog" aria-modal="true" aria-label={editing ? 'Edit event' : 'Add event'}>
-      <form ref={formRef} className="dialog" onSubmit={submit}>
-        <h2>{editing ? 'Edit event' : 'Add event'}</h2>
-        {error && <p role="alert">{error.message}</p>}
+      <Panel as="form" ref={formRef} className="dialog" onSubmit={submit}>
+        <h2 className="dialog__title">{editing ? 'Edit event' : 'Add event'}</h2>
+        {error && <p className="dialog__error" role="alert">{error.message}</p>}
 
-        <label>
-          Event name
-          <input value={name} onChange={(e) => { setName(e.target.value); touched('name') }} />
-        </label>
+        <Field label="Event name" invalid={blamed('name')}>
+          {(control) => (
+            <Input {...control} value={name} onChange={(e) => { setName(e.target.value); touched('name') }} />
+          )}
+        </Field>
 
-        <label>
-          Track
-          <select value={trackId} onChange={(e) => { setTrackId(e.target.value); touched('track') }}>
-            {project.tracks.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
-        </label>
+        <Field label="Track" invalid={blamed('track')}>
+          {(control) => (
+            <Select {...control} value={trackId} onChange={(e) => { setTrackId(e.target.value); touched('track') }}>
+              {project.tracks.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </Select>
+          )}
+        </Field>
 
-        <label>
-          Start
-          <input type="datetime-local" value={start} onChange={(e) => { setStart(e.target.value); touched('start') }} />
-        </label>
+        <div className="dialog__dates">
+          <Field label="Start" invalid={blamed('start')}>
+            {(control) => (
+              <Input {...control} type="datetime-local" value={start} onChange={(e) => { setStart(e.target.value); touched('start') }} />
+            )}
+          </Field>
 
-        <label>
-          End
-          <input type="datetime-local" value={end} onChange={(e) => { setEnd(e.target.value); touched('end') }} />
-        </label>
+          <Field label="End" invalid={blamed('end')}>
+            {(control) => (
+              <Input {...control} type="datetime-local" value={end} onChange={(e) => { setEnd(e.target.value); touched('end') }} />
+            )}
+          </Field>
+        </div>
 
-        <label>
-          Colour (optional)
-          <input type="color" value={colorChoice ?? trackColor} onChange={(e) => setColorChoice(e.target.value)} />
-        </label>
+        <div className="dialog__dates">
+          <Field label="Colour (optional)">
+            {(control) => (
+              <Input {...control} type="color" value={colorChoice ?? trackColor} onChange={(e) => setColorChoice(e.target.value)} />
+            )}
+          </Field>
 
-        <label>
-          Image (optional)
-          <input type="file" accept="image/*" onChange={(e) => pickImage(e.target.files?.[0])} />
-        </label>
+          <Field label="Image (optional)" invalid={blamed('image')}>
+            {(control) => (
+              <Input {...control} type="file" accept="image/*" onChange={(e) => pickImage(e.target.files?.[0])} />
+            )}
+          </Field>
+        </div>
 
-        <fieldset>
+        <fieldset className="dialog__notes">
           <legend>Notes (optional)</legend>
           <NotesTable value={notes} onChange={setNotes} />
         </fieldset>
 
         <div className="dialog__actions">
-          <button type="button" onClick={onClose}>Cancel</button>
-          <button type="submit">Save</button>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="primary" type="submit">Save</Button>
         </div>
-      </form>
+      </Panel>
     </div>
   )
 }

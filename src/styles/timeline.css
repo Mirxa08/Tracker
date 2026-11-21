@@ -14,6 +14,11 @@
 .timeline__viewport {
   overflow: auto;
   max-height: calc(100vh - var(--viewport-offset, 96px));
+  /* The rounded frame around the whole grid. The scroller is what clips, so the radius has
+     to live here rather than on .timeline, which is sized to its content. */
+  margin: 0 12px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
 }
 
 /* Sized to its content so sticky containing blocks span the whole scrollable area. */
@@ -42,7 +47,34 @@
   background: var(--bg);
 }
 
-.timeline__canvas { position: relative; }
+/* The faint Sakuga grid texture, pitched to the day columns (DAY_WIDTH, 34px) rather than
+   Sakuga's own 20px: a vertical line that lands anywhere but a day boundary fights the day
+   band above it, and at 34px the texture reads as the calendar it belongs to. The horizontal
+   pitch is the row pitch (--row-height + --row-gap) for the same reason. */
+.timeline__canvas {
+  position: relative;
+  background-image:
+    linear-gradient(90deg, rgb(255 255 255 / 3%) 1px, transparent 1px),
+    linear-gradient(rgb(255 255 255 / 2%) 1px, transparent 1px);
+  background-size:
+    var(--day-width) 100%,
+    100% calc(var(--row-height) + var(--row-gap));
+  background-position: 0 var(--header-height);
+}
+
+:root[data-theme='light'] .timeline__canvas {
+  background-image:
+    linear-gradient(90deg, rgb(0 0 0 / 5%) 1px, transparent 1px),
+    linear-gradient(rgb(0 0 0 / 3%) 1px, transparent 1px);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) .timeline__canvas {
+    background-image:
+      linear-gradient(90deg, rgb(0 0 0 / 5%) 1px, transparent 1px),
+      linear-gradient(rgb(0 0 0 / 3%) 1px, transparent 1px);
+  }
+}
 
 .bands { position: sticky; top: 0; z-index: 30; background: var(--bg); }
 
@@ -97,10 +129,12 @@
   font-weight: 500;
 }
 
+.track-label__name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .track-label__swatch {
   width: 8px;
   height: 8px;
-  border-radius: 2px;
+  border-radius: var(--r-pill);
   flex: none;
 }
 
@@ -114,17 +148,12 @@
   pointer-events: none;
 }
 
+/* Position only: the pill itself is the Sakuga Badge. */
 .now-line__pill {
   position: absolute;
   top: 2px;
   left: 50%;
   transform: translateX(-50%);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 1px 7px;
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 

@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import type { Project } from '../domain/schema'
+import { Button, Field, Input, Select, SpotlightSurface } from './sakuga'
 import '../styles/project-bar.css'
 
 export function ProjectBar({
@@ -27,18 +28,25 @@ export function ProjectBar({
   const fileInput = useRef<HTMLInputElement>(null)
 
   return (
-    <header className="project-bar">
-      <label className="project-bar__project">
-        Project
-        <select value={currentId ?? ''} onChange={(e) => onSelect(e.target.value)}>
-          {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-      </label>
+    <SpotlightSurface as="header" className="project-bar" grid>
+      <Field label="Project" className="project-bar__project">
+        {(control) => (
+          <Select
+            {...control}
+            value={currentId ?? ''}
+            onChange={(e) => onSelect(e.target.value)}
+          >
+            {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </Select>
+        )}
+      </Field>
 
-      <button type="button" onClick={onCreate}>New project</button>
-      <button type="button" onClick={onAddTrack}>Add track</button>
-      <button type="button" onClick={onAddEvent}>Add event</button>
-      <button type="button" onClick={onJumpToNow}>Now</button>
+      <div className="project-bar__actions">
+        <Button onClick={onCreate}>New project</Button>
+        <Button onClick={onAddTrack}>Add track</Button>
+        <Button variant="primary" onClick={onAddEvent}>Add event</Button>
+        <Button onClick={onJumpToNow}>Now</Button>
+      </div>
 
       <label className="project-bar__images">
         <input
@@ -48,21 +56,23 @@ export function ProjectBar({
         />
         Include images
       </label>
-      <button type="button" onClick={() => onExport({ includeImages })}>Export</button>
+      <Button onClick={() => onExport({ includeImages })}>Export</Button>
 
-      <label className="project-bar__import">
-        Import
-        <input
-          ref={fileInput}
-          type="file"
-          accept="application/json,.json"
-          onChange={(e) => {
-            const file = e.target.files?.[0]
-            if (file) onImport(file)
-            if (fileInput.current) fileInput.current.value = ''
-          }}
-        />
-      </label>
-    </header>
+      <Field label="Import" className="project-bar__import">
+        {(control) => (
+          <Input
+            {...control}
+            ref={fileInput}
+            type="file"
+            accept="application/json,.json"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) onImport(file)
+              if (fileInput.current) fileInput.current.value = ''
+            }}
+          />
+        )}
+      </Field>
+    </SpotlightSurface>
   )
 }

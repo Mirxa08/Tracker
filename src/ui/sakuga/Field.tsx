@@ -1,4 +1,4 @@
-import { useId, type ComponentPropsWithoutRef, type ReactNode } from 'react'
+import { useId, type ComponentPropsWithRef, type ReactNode } from 'react'
 import '../../styles/sakuga.css'
 
 /** What a Field hands its control: the id its label points at, plus the error wiring. */
@@ -42,7 +42,7 @@ export function Field({ label, error, invalid, className, children }: FieldProps
   )
 }
 
-export type InputProps = ComponentPropsWithoutRef<'input'>
+export type InputProps = ComponentPropsWithRef<'input'>
 
 /**
  * A text, datetime-local, colour or file input with the shared finish: radius --r-sm, the

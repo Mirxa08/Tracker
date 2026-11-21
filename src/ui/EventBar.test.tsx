@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import type { TrackEvent } from '../domain/schema'
 import { DAY_WIDTH } from '../domain/time'
 import { EventBar } from './EventBar'
+import barCss from '../styles/event-bar.css?raw'
 
 const imageOverride = vi.hoisted(() => ({ fn: null as null | ((id: string) => Promise<string | null>) }))
 
@@ -147,4 +148,38 @@ test('a rejecting image lookup is swallowed and renders a plain bar', async () =
   await new Promise((r) => setTimeout(r, 20))
   expect(screen.getByRole('button', { name: /Lily Banner/ })).toBeInTheDocument()
   expect(document.querySelector('img')).toBeNull()
+})
+
+// The restyle: the bar is a Sakuga surface, the glow is its own colour, and the artwork
+// still bleeds in from the right. Each of these has a way of being lost silently.
+test('the bar is a spotlight surface tinted with the event colour', () => {
+  render(<EventBar event={event} viewStart={viewStart} now={now} onSelect={() => {}} />)
+  const bar = screen.getByRole('button', { name: /Lily Banner/ })
+  expect(bar).toHaveClass('event-bar', 'sk-spotlight')
+  // The outer glow is driven from this property, so a missing one means no glow at all.
+  expect(bar.style.getPropertyValue('--bar-color')).toBe(event.color)
+  expect(barCss).toMatch(/box-shadow:[^;]*var\(--bar-color/)
+})
+
+test('the upcoming wash is an element, because the spotlight owns both pseudo-elements', () => {
+  const future = { ...event, start: new Date(2026, 10, 12).toISOString(), end: new Date(2026, 10, 20).toISOString() }
+  const { unmount } = render(<EventBar event={future} viewStart={viewStart} now={now} onSelect={() => {}} />)
+  expect(document.querySelector('.event-bar__wash')).not.toBeNull()
+  unmount()
+  render(<EventBar event={event} viewStart={viewStart} now={now} onSelect={() => {}} />)
+  expect(document.querySelector('.event-bar__wash')).toBeNull()
+})
+
+test('the artwork still bleeds in from the right under a gradient mask', () => {
+  const image = /\.event-bar__image\s*\{([^}]*)\}/.exec(barCss)
+  expect(image).not.toBeNull()
+  expect(image![1]).toMatch(/inset:\s*0 0 0 auto/)
+  // Both properties, each matched on its own: a pattern that allowed either would still pass
+  // with the standard one deleted, which is the one that matters everywhere but old WebKit.
+  expect(image![1]).toMatch(/(?:^|[;{]\s*)\s*mask-image:\s*linear-gradient\(to right, transparent, #000 60%\)/m)
+  expect(image![1]).toMatch(/-webkit-mask-image:\s*linear-gradient\(to right, transparent, #000 60%\)/)
+})
+
+test('the rounded bar and its pill use the shared scale, not loose numbers', () => {
+  expect(/\.event-bar\s*\{([^}]*)\}/.exec(barCss)![1]).toMatch(/border-radius:\s*var\(--r-md\)/)
 })

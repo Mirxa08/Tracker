@@ -1,4 +1,5 @@
 import type { TrackEvent } from '../domain/schema'
+import { Button, IconButton, Panel } from './sakuga'
 import { useImageUrl } from './useImageUrl'
 import '../styles/detail.css'
 
@@ -20,11 +21,13 @@ export function EventDetail({
 }) {
   const imageUrl = useImageUrl(event.imageId)
   return (
-    <aside className="detail" aria-label="Event details">
+    <Panel as="aside" className="detail" aria-label="Event details">
       <header className="detail__header">
         <h2>{event.name}</h2>
-        <button type="button" onClick={onClose} aria-label="Close details">&times;</button>
+        <IconButton label="Close details" onClick={onClose}>&times;</IconButton>
       </header>
+      {/* The event's own colour, so the panel reads as belonging to the bar that opened it. */}
+      <span className="detail__accent" style={{ background: event.color }} />
       <p className="detail__range">{formatRange(event)}</p>
       {imageUrl && <img className="detail__image" src={imageUrl} alt="" />}
       {event.notes && event.notes.columns.length > 0 ? (
@@ -42,9 +45,9 @@ export function EventDetail({
         <p className="detail__empty">No notes on this event.</p>
       )}
       <div className="detail__actions">
-        <button type="button" onClick={() => onEdit(event.id)}>Edit</button>
-        <button type="button" onClick={() => onDelete(event.id)}>Delete</button>
+        <Button variant="primary" onClick={() => onEdit(event.id)}>Edit</Button>
+        <Button variant="danger" onClick={() => onDelete(event.id)}>Delete</Button>
       </div>
-    </aside>
+    </Panel>
   )
 }

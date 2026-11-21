@@ -1,4 +1,5 @@
 import type { Project } from '../domain/schema'
+import { IconButton } from './sakuga'
 
 export function TrackGutter({
   project,
@@ -13,10 +14,10 @@ export function TrackGutter({
       {project.tracks.map((track) => (
         <div key={track.id} className="track-label">
           <span className="track-label__swatch" style={{ background: track.color }} />
-          <span>{track.name}</span>
-          <button type="button" onClick={() => onAdd(track.id)} aria-label={`Add event to ${track.name}`}>
+          <span className="track-label__name">{track.name}</span>
+          <IconButton label={`Add event to ${track.name}`} onClick={() => onAdd(track.id)}>
             +
-          </button>
+          </IconButton>
         </div>
       ))}
     </div>

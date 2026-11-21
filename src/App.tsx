@@ -8,7 +8,9 @@ import { EventDialog, applyDraft } from './ui/EventDialog'
 import { downloadText } from './ui/download'
 import { ProjectBar } from './ui/ProjectBar'
 import { Timeline, type TimelineHandle } from './ui/Timeline'
+import { Button } from './ui/sakuga'
 import './styles/theme.css'
+import './styles/app.css'
 
 function Workspace() {
   const { state, dispatch } = useStore()
@@ -61,7 +63,12 @@ function Workspace() {
 
   return (
     <>
-      <h1>Tracker</h1>
+      <div className="app__masthead">
+        <h1 className="app__title">Tracker</h1>
+        {project && (
+          <Button variant="danger" onClick={deleteCurrent}>Delete project</Button>
+        )}
+      </div>
       <ProjectBar
         projects={state.projects}
         currentId={state.currentId}
@@ -73,12 +80,11 @@ function Workspace() {
         onExport={exportProject}
         onJumpToNow={() => timeline.current?.scrollToNow()}
       />
-      {project && <button type="button" onClick={deleteCurrent}>Delete project</button>}
-      {state.error && <p role="alert">{state.error}</p>}
+      {state.error && <p className="app__alert" role="alert">{state.error}</p>}
       {state.undo && (
-        <p role="status">
+        <p className="app__status" role="status">
           {state.undo.label}
-          <button type="button" onClick={() => dispatch({ type: 'undo' })}>Undo</button>
+          <Button onClick={() => dispatch({ type: 'undo' })}>Undo</Button>
         </p>
       )}
       {project
@@ -97,7 +103,7 @@ function Workspace() {
             }}
           />
         )
-        : <p>Loading…</p>}
+        : <p className="app__loading">Loading…</p>}
       {selected && !state.dialog && (
         <EventDetail
           event={selected}

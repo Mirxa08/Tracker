@@ -1,3 +1,4 @@
+import { Button } from './sakuga'
 import type { Notes } from '../domain/schema'
 
 export function NotesTable({ value, onChange }: { value: Notes; onChange: (n: Notes) => void }) {
@@ -52,14 +53,16 @@ export function NotesTable({ value, onChange }: { value: Notes; onChange: (n: No
                 </td>
               ))}
               <td>
-                <button type="button" onClick={() => removeRow(rowIndex)}>Remove row</button>
+                <Button onClick={() => removeRow(rowIndex)}>Remove row</Button>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
-      <button type="button" onClick={addColumn}>Add column</button>
-      <button type="button" onClick={addRow} disabled={value.columns.length === 0}>Add row</button>
+      <div className="notes__actions">
+        <Button onClick={addColumn}>Add column</Button>
+        <Button onClick={addRow} disabled={value.columns.length === 0}>Add row</Button>
+      </div>
     </div>
   )
 }
