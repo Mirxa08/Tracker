@@ -1,0 +1,14 @@
+/*
+ * Tailwind v4 entry. Imported by main.tsx only, so the Tailwind plugin never runs under
+ * vitest (see the note in vite.config.ts).
+ *
+ * Theme and utilities only, NO preflight: 262 tests and all of this app's layout come from
+ * hand-written CSS (theme/timeline/event-bar/detail/dialog/project-bar), and Tailwind's
+ * preflight reset would silently restyle every button, table and heading in them. The new
+ * components use utilities on top of that CSS rather than replacing it.
+ */
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+/* Tailwind v4 has no config file: sources are declared here. */
+@source '../ui';
