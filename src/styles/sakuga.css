@@ -262,13 +262,13 @@
 .sk-seg__item { position: relative; display: inline-flex; }
 
 /* The real radio keeps the arrow-key and screen-reader behaviour of a radio group; the
-   label is what gets painted. Clipped rather than display:none so focus still lands. */
+   label is what gets painted. Clipped rather than display:none so focus still lands, and
+   left clickable in its own right: pointer-events:none here would refuse a direct click. */
 .sk-seg__input {
   position: absolute;
   width: 1px;
   height: 1px;
   opacity: 0;
-  pointer-events: none;
 }
 
 .sk-seg__label {

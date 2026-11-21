@@ -1,11 +1,18 @@
 import { useRef, useState } from 'react'
-import type { Project } from '../domain/schema'
-import { Button, Field, Input, Select, SpotlightSurface } from './sakuga'
+import type { Project, Theme } from '../domain/schema'
+import { Button, Field, Input, Segmented, Select, SpotlightSurface } from './sakuga'
 import '../styles/project-bar.css'
+
+const THEMES: readonly { value: Theme; label: string }[] = [
+  { value: 'dark', label: 'Dark' },
+  { value: 'light', label: 'Light' },
+  { value: 'system', label: 'System' },
+]
 
 export function ProjectBar({
   projects,
   currentId,
+  theme,
   onSelect,
   onCreate,
   onAddTrack,
@@ -13,9 +20,11 @@ export function ProjectBar({
   onImport,
   onExport,
   onJumpToNow,
+  onChangeTheme,
 }: {
   projects: Project[]
   currentId: string | null
+  theme: Theme
   onSelect: (id: string) => void
   onCreate: () => void
   onAddTrack: () => void
@@ -23,6 +32,7 @@ export function ProjectBar({
   onImport: (file: File) => void
   onExport: (opts: { includeImages: boolean }) => void
   onJumpToNow: () => void
+  onChangeTheme: (theme: Theme) => void
 }) {
   const [includeImages, setIncludeImages] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
@@ -73,6 +83,16 @@ export function ProjectBar({
           />
         )}
       </Field>
+
+      {/* A light theme has always been in the schema; this is the only way to reach it
+          without changing the operating system's own setting. */}
+      <Segmented
+        className="project-bar__theme"
+        label="Theme"
+        value={theme}
+        options={THEMES}
+        onChange={onChangeTheme}
+      />
     </SpotlightSurface>
   )
 }

@@ -9,6 +9,8 @@ function renderBar(overrides: Partial<Parameters<typeof ProjectBar>[0]> = {}) {
   const props = {
     projects,
     currentId: projects[0].id,
+    theme: 'dark' as const,
+    onChangeTheme: vi.fn(),
     onSelect: vi.fn(),
     onCreate: vi.fn(),
     onAddTrack: vi.fn(),

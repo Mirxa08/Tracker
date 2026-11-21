@@ -29,7 +29,8 @@ test('createProject starts with no tracks or events', () => {
   expect(p.name).toBe('Empty')
   expect(p.tracks).toEqual([])
   expect(p.events).toEqual([])
-  expect(p.settings.theme).toBe('system')
+  // Ruling 25: dark is the default for a new project, not the platform's preference.
+  expect(p.settings.theme).toBe('dark')
 })
 
 test('addTrack appends with an incrementing order and a distinct colour', () => {

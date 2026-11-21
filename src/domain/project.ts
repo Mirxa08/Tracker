@@ -1,4 +1,4 @@
-import { newId, type Notes, type Project, type TrackEvent } from './schema'
+import { newId, type Notes, type Project, type Theme, type TrackEvent } from './schema'
 import { nextTrackColor } from './palette'
 
 const MS_PER_DAY = 86_400_000
@@ -23,8 +23,14 @@ export function createProject(name: string): Project {
     updatedAt: now,
     tracks: [],
     events: [],
-    settings: { theme: 'system' },
+    // Ruling 25: dark is the default, so a new project asks for dark outright rather than
+    // deferring to whatever the platform happens to be set to.
+    settings: { theme: 'dark' },
   }
+}
+
+export function setTheme(p: Project, theme: Theme): Project {
+  return touched(p, { settings: { ...p.settings, theme } })
 }
 
 export function addTrack(p: Project, name: string): Project {

@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import { addTrack, createProject, updateEvent } from './domain/project'
+import { addTrack, createProject, setTheme, updateEvent } from './domain/project'
 import { buildExport, exportFileName, importFromJson, serializeExport } from './persistence/transfer'
 import { StoreProvider, useStore } from './state/StoreProvider'
 import { currentProject } from './state/reducer'
@@ -8,6 +8,7 @@ import { EventDialog, applyDraft } from './ui/EventDialog'
 import { downloadText } from './ui/download'
 import { ProjectBar } from './ui/ProjectBar'
 import { Timeline, type TimelineHandle } from './ui/Timeline'
+import { useAppliedTheme } from './ui/useTheme'
 import { Button } from './ui/sakuga'
 import './styles/theme.css'
 import './styles/app.css'
@@ -17,6 +18,10 @@ function Workspace() {
   const project = currentProject(state)
   const selected = project?.events.find((e) => e.id === state.selectedEventId) ?? null
   const timeline = useRef<TimelineHandle>(null)
+  // Before the first project loads there is nothing to read a setting from, and dark is the
+  // default, so that is what the document carries until one arrives.
+  const theme = project?.settings.theme ?? 'dark'
+  useAppliedTheme(theme)
   const fail = (error: unknown, fallback: string) =>
     dispatch({ type: 'error', message: error instanceof Error ? error.message : fallback })
 
@@ -72,6 +77,10 @@ function Workspace() {
       <ProjectBar
         projects={state.projects}
         currentId={state.currentId}
+        theme={theme}
+        onChangeTheme={(next) => {
+          if (project) dispatch({ type: 'applyProject', project: setTheme(project, next) })
+        }}
         onSelect={(projectId) => dispatch({ type: 'selectProject', projectId })}
         onCreate={create}
         onAddTrack={addTrackPrompt}

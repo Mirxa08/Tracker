@@ -272,3 +272,46 @@ test('an earlier import error disappears once a later import succeeds', async ()
   await waitFor(() => expect(select.options).toHaveLength(2))
   expect(screen.queryByRole('alert')).toBeNull()
 })
+
+describe('the theme control', () => {
+  afterEach(() => { delete document.documentElement.dataset.theme })
+
+  test('a new project starts dark and says so on the document root', async () => {
+    render(<App />)
+    await screen.findByRole('radiogroup', { name: 'Theme' })
+    expect(screen.getByRole('radio', { name: 'Dark' })).toBeChecked()
+    expect(document.documentElement.dataset.theme).toBe('dark')
+  })
+
+  test('choosing Light switches the document and is persisted on the project', async () => {
+    render(<App />)
+    await screen.findByRole('radiogroup', { name: 'Theme' })
+    await userEvent.click(screen.getByRole('radio', { name: 'Light' }))
+    expect(document.documentElement.dataset.theme).toBe('light')
+    // Persisted, not just in the DOM: the choice has to survive a reload.
+    await waitFor(async () => {
+      expect((await listProjects())[0].settings.theme).toBe('light')
+    })
+  })
+
+  test('a project saved as System follows the platform, which here asks for light', async () => {
+    const stored = { ...seedable('Follows the OS'), settings: { theme: 'system' as const } }
+    await putProject(stored)
+    const original = window.matchMedia
+    window.matchMedia = ((media: string) => ({
+      matches: media === '(prefers-color-scheme: light)',
+      media,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia
+    try {
+      render(<App />)
+      // The bar renders before storage answers, so wait for the stored setting to arrive
+      // rather than reading the default it shows in the meantime.
+      await waitFor(() => expect(screen.getByRole('radio', { name: 'System' })).toBeChecked())
+      expect(document.documentElement.dataset.theme).toBe('light')
+    } finally {
+      window.matchMedia = original
+    }
+  })
+})
