@@ -1,10 +1,16 @@
 # Tracker: decisions made while you were away
 
-Source: `progress.md` in this folder. It holds 35 numbered rulings (1-35). The resume note that says "1-31" predates rulings 32-35; all 35 are covered here. Ruling numbers are in parentheses so you can look each one up.
+Source: the engineering ledger kept during the build. It holds 45 numbered rulings. Sections 1-9 below cover 1-35, written partway through; the later section covers 36-45. Ruling numbers are in parentheses so you can look each one up.
 
-State at the end of the ledger: Tasks 1-14 are implemented and reviewed. 228 tests pass across 23 files and `tsc` is clean. The hardening batch (A1-A13) has been dispatched but its results are not in the ledger. The final whole-branch review has not run. Nothing has been merged to `main`, and Pages has not been switched to the workflow. The ledger records no publish step as done.
+**Current state.** The app is built, reviewed and live at https://mirxa08.github.io/Tracker/, deployed by GitHub Actions from `main`. All fourteen planned tasks, a thirteen-item hardening pass and the whole track-gutter section are done, and the final whole-branch review found nothing blocking. Sections written earlier describe a state that has since moved on; where that happens, the later sections and "Corrections to this document" are the accurate account.
 
 ## 1. Look at these first
+
+### We built against the wrong library, then corrected it
+
+You asked for "Sakuga UI"; several unrelated projects share that name and the wrong one was
+picked. The full account, and what it cost, is in **"Correction first: we built against the wrong
+library"** in the later-decisions section. Read that before anything else here.
 
 ### Dark is the default theme (25) — your call
 
@@ -27,9 +33,9 @@ To remove it: delete the colour input and its `draft.color` handling in the even
 - An event's colour cannot be reset to "follow the track". Changing the track in the edit dialog does not recolour the event.
 - The timeline height uses a hardcoded 96px offset (`calc(100vh - 96px)`). `--viewport-offset` is never defined. It is about 16px too generous against the measured value, and a taller header would give a double scrollbar. `100vh` also has the mobile toolbar quirk.
 
-### Also yours: publishing
+### Publishing — done
 
-You authorised merging to `main` and switching Pages to the Actions source, and said you take full responsibility. That withdrew my earlier decision to hold the merge (7, 13). The plan is: merge and push first, then `gh api -X PUT repos/Mirxa08/Tracker/pages -f build_type=workflow`, then watch the Actions run and check that the live URL serves the real app with assets under `/Tracker/`. The CI workflow runs `npm test` before `npm run build`, so a red suite blocks the deploy.
+You authorised merging to `main` and switching Pages to the Actions source, which withdrew the earlier decision to hold the merge (7, 13). That is all complete: Pages was switched from the legacy `/docs` source to the Actions workflow, and the site is live with assets under `/Tracker/`. The workflow runs `npm test` before `npm run build`, so a red suite blocks a deploy.
 
 ## 2. Data safety and storage
 
@@ -142,14 +148,30 @@ Outside the tests: my browser check of Task 9 passed over the sticky-band defect
 
 ## 9. What is NOT done
 
-- **Hardening batch (A1-A13) is dispatched; results are not in the ledger.**
-  - A1-A2: assert `createdAt` survives import, and add a second distinct image to the round-trip seed. These are the last residual data-loss exposure.
-  - A3: image GC sweep. A4: Escape and focus trap. A5: guard the TZ pin. A6: `remainingLabel` boundaries.
-  - A7: reject duplicate track and event ids on import. A8: assert the image `.catch`.
-  - A9: dialog backdrop in `zorder.test.ts`. A10: strengthen `theme.test.ts`. A11: `engines` in `package.json`.
-  - A12: strip BOMs, anchor the regex, add the minute-tick comment. A13: clear the dialog error once the field is fixed.
-- **Final whole-branch review** on the most capable model, then merge, push, switch Pages, and verify the live URL.
-- **Open questions from Task 7:** `migrate()` is the identity, so "migrates older versions forward" exercises nothing. It becomes a defect the first time `SCHEMA_VERSION` increments without a test. Whether `validateExportFile`'s per-field rejection messages are covered in `schema.test.ts` has not been checked.
+*(The hardening batch A1-A13 and the final whole-branch review are both complete; an earlier
+version of this section listed them as pending. The review found no blocking defects and nothing
+on the branch can silently lose, corrupt or mis-attach a project, an event or an image.)*
+
+- **Export silently drops an image missing from the store**, so a "complete backup" can be
+  quietly incomplete. This is the most valuable thing left. The reviewer's ruling, which was
+  accepted: do not fail the whole export — the structure is the irreplaceable part, and refusing
+  turns a partial backup into none — but do not stay silent either. `buildExport` should return
+  the misses and the app should say "Exported without N of M images". Measured: 1775 bytes with
+  the image, 587 bytes and an empty `images` map without it, no warning either way.
+- **Dialog focus restore is dead from the Edit opener.** Opening the dialog unmounts the detail
+  panel, so the element it would return focus to is gone and Escape drops focus to the document
+  body. It works correctly from "Add event".
+- **No `pagehide` flush**, so an edit made inside the 300ms save debounce dies if the tab is
+  closed in that window. React runs no cleanup on tab close.
+- **An image uploaded and then cancelled orphans its blob permanently.** It is never referenced,
+  so the deliberately narrow sweep (37) correctly never considers it.
+- **A failed `deleteProject` loses the specific message** because it skips the error wrapper, so
+  a quota failure reports generically and a removed project can return on the next load.
+- **Undo is one step, not the session.** Ruling 20 narrowed it deliberately; the design doc's
+  "undoable for the remainder of the session" is therefore not met.
+- **`migrate()` is the identity**, so "migrates older versions forward" exercises nothing, and
+  `validateProject` rejects a project with no `settings`. Both become real the first time
+  `SCHEMA_VERSION` increments.
 - **Tier B, left on purpose (low value or speculative):**
   - StrictMode double-mount tests.
   - The `pointerId` and concurrent-drag guard (mouse-only desktop use).
@@ -161,18 +183,46 @@ Outside the tests: my browser check of Task 9 passed over the sticky-band defect
   - IndexedDB `blocking` handlers, not needed at `DB_VERSION` 1.
   - Various "coverage could be broader" lines.
 - **Deferred but placed in no tier (notable ones):**
-  - Exporting with images silently skips an image missing from the store, so a "complete backup" can be incomplete. The ledger says the export UI should surface a count.
-  - A failed `deleteProject` leaves the row, so a removed project can return on the next load. Untested.
   - A long event name can run under its badge on short bars.
   - An edit dialog for an event that no longer exists shows "Add event".
   - The undo status line pushes the timeline down a line.
   - `dataUrlToBlob` rejects valid data URLs with extra parameters.
   - `bitmap.close()` is not in a `finally`.
-- **Not verified in a real environment.** Touch input, Shift hour-snap with a real pointer, real IndexedDB Blob serialisation, and the bands region under the dialog backdrop.
+- **Not verified in a real environment.** Touch input, Shift hour-snap with a trusted pointer, and
+  the header-bands region beneath the dialog backdrop. Real IndexedDB Blob storage *was* since
+  verified in a browser — a 900×400 PNG stored and read back as a 600×267 WebP of 862 bytes — so
+  it has come off this list.
 
 ---
 
-# Later decisions (36–40), made after this document was first written
+# Later decisions (36–45), made after this document was first written
+
+## Correction first: we built against the wrong library
+
+This is the biggest thing to know, and an earlier version of this document got it wrong.
+
+You asked for "Sakuga UI". Several unrelated projects use that name. The one picked was
+**`prateekraiger/sakuga-ui`** — a React/Tailwind kit of spotlight glows, pixel fields and physics
+sandboxes. It was researched, built against and shipped.
+
+You meant **`finktheartist/sakuga-vfx`** (Justin Finkelman, MIT): *"Twelve ordinary UI controls
+that react like anime. One file each, no dependencies."* Buttons squash and fire an impact burst
+with ドン!, checkboxes slash with ズザッ, inputs kick up dust from the caret, radios pop with a
+hollow ポン.
+
+Two things follow from that, and both are worth your attention:
+
+- Your first message about it — which read as "I don't want anime-style UI" — actually meant you
+  could not *see* any anime-style UI. It was treated as the first reading and nearly led to
+  reverting the restyle. Had that happened, the wrong library would have been removed for the
+  wrong reason.
+- Your second complaint, "no animations on anything at all", was correct for a second
+  independent reason: with empty storage the app shows no event bars, and every bit of the
+  styling lived on bars. There was nothing on screen to animate.
+
+The right library was identified by opening your video in a browser — an ordinary fetch returns
+nothing, because the page is JavaScript-rendered — and then searching on the wording of its
+description.
 
 ## 36 — Deleted the unused `snapToDay` helper
 Ruling 5 had said "use it or delete it" and recorded no outcome. It turned out to be exported,
@@ -184,33 +234,73 @@ The sweep removes image blobs no event references any more. It only considers id
 has seen referenced; it does not diff against everything in the store. An unknown blob cannot be
 told apart from an upload in flight, an import caught mid-write, or another browser tab's data,
 and deleting one of those is data loss. **Cost:** orphans left by earlier sessions are never
-reclaimed — wasted space, never lost data. The implementer proposed this refusal and I accepted it.
+reclaimed — wasted space, never lost data. The implementer proposed this refusal and it was
+accepted.
 
-## 38 — Sakuga UI turned out to be copy-paste, not a package
-You chose the React library knowing it would break the three-dependency rule. It did not: the kit
-is copy-paste source, not an npm package, so **runtime dependencies are still exactly `react`,
-`react-dom` and `idb`**. Tailwind v4 is build-time only and the site still works offline.
+## 38 — The dependency worry turned out not to apply
+You chose the React library knowing it would break the three-dependency rule. It did not, and
+neither does the right one. Both are copy-paste or vendored source rather than npm packages, so
+**runtime dependencies are still exactly `react`, `react-dom` and `idb`**. Tailwind v4 is
+build-time only and the site still works offline.
 
-## 39 — The kit has no form components, so we built them
-Sakuga ships heroes, effects and layouts — no app bar, dialog, select, input, badge or panel.
-We took its visual language and its spotlight technique, and authored the missing primitives in
-`src/ui/sakuga/`: SpotlightSurface, Button, IconButton, Field, Input, Select, Badge, Panel,
-Segmented. The spotlight effect is credited to the kit (MIT, Prateek Raiger) in the CSS.
+## 39 — We wrote the form components ourselves
+Neither Sakuga project ships an app bar, dialog, select, input, badge or panel. The first has
+heroes and effects; the second has twelve standalone controls with their own shadow DOM. So the
+missing primitives were written here, in `src/ui/sakuga/`: SpotlightSurface, Button, IconButton,
+Field, Input, Select, Badge, Panel, Segmented.
 
 ## 40 — Existing CSS keeps owning layout
 Tailwind and the new components own the finish only. Converting the hand-written CSS to utilities
-would have broken 262 computed-style assertions for no visual gain.
+would have broken hundreds of computed-style assertions for no visual gain.
+
+## 41 — The right Sakuga is `finktheartist/sakuga-vfx`
+See the correction above. MIT, pinned at commit `c3dabb17`.
+
+## 42 — We vendored its core instead of adopting its components
+**The most consequential technical decision of this stretch.** The upstream ships custom elements
+(`<sakuga-button>`) with shadow DOM and canvas, installed by the shadcn CLI. Adopting them would
+have broken a large share of the test suite — Testing Library cannot see inside shadow DOM, so
+`getByRole('button', { name: 'Save' })` stops matching — failed in the test environment, which
+cannot upgrade custom elements or draw canvas, and discarded accessible markup we already had.
+
+Instead its shared `core.js` is vendored into `public/sakuga-vfx/` and its effects are fired from
+our own ordinary elements. The core exposes exactly what that needs: `burst`, `puff`, `shards`,
+`slash`, `kira`, `sfx` (the lettering, baked as traced paths), `at(el)` for page coordinates and
+`squashy(el)` for the spring squash. Every call goes through a wrapper that does nothing when the
+global is absent, which is what keeps the suite green.
+
+**Cost if wrong:** the effects are decorative and sit behind one wrapper, so the blast radius is
+a single file.
+
+## 43 — The earlier restyle stays
+The rounded corners, the dark palette, the theme control and the component set were built against
+the wrong library, but they are sound work that the tests assert, and your objection was to the
+identification rather than to rounded corners. The anime layer goes on top of them.
+
+## 44 — The vendored core is pinned
+Pinned to `c3dabb17` with the SHA recorded in the file header, so the copy is reproducible and
+can be diffed against upstream. That commit deliberately removed the Slash and Manga themes, the
+glow, screentone, lightning and shockwave-ring effects and the BANG and ズバッ lettering, so those
+APIs do not exist in the version vendored here.
+
+## 45 — Track row controls paint over the row
+Rename, add and delete appear on hover or focus and are drawn over the row's right end. Kept
+in the layout flow they squeezed a hovered track name to about 26px in the real 190px gutter.
+**Cost:** while hovered, the overlay covers the end of a long name.
 
 ## Corrections to this document
 
 **Ruling 25 was never actually implemented.** This document, and the ledger it was written from,
 said dark was the default. In the code it was not: `createProject` still wrote `'system'`, nothing
 ever set `data-theme`, and the test that claimed to guard it only read CSS text. The final review
-caught it. It is implemented now, and verified live in production (`data-theme="dark"`), together
+caught it. It is implemented now and verified live in production (`data-theme="dark"`), together
 with the Dark/Light/System control the design doc's "a light theme is available" always needed.
 
-## What shipped
+**The track gutter is no longer missing.** An earlier section listed inline rename, drag reorder,
+collapse and delete as unbuilt. All four now exist, along with keyboard reordering (Alt+Arrow with
+an `aria-live` announcement) and an inline add-track field replacing a `window.prompt` that threw
+outright in browsers which block prompts.
 
-Pushed to `main` as `da7a9d5` and deployed by GitHub Actions. Live at
-https://mirxa08.github.io/Tracker/ with assets under `/Tracker/`, asset hashes identical to the
-locally verified build. 291 tests in 26 files, `tsc` clean, no console errors in production.
+The gutter and canvas are separate columns whose rows must align. They are driven from one shared
+row height so they cannot drift, and the browser measured a difference of zero at every row in
+both the expanded and collapsed states.
