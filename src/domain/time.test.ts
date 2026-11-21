@@ -77,3 +77,35 @@ test('remainingLabel returns null once the event has ended', () => {
   const now = new Date(2026, 10, 20, 12, 0)
   expect(remainingLabel(new Date(2026, 10, 19), now)).toBeNull()
 })
+
+describe('remainingLabel boundaries', () => {
+  // Pure elapsed time from fixed UTC instants, so no daylight-saving shift can move an edge.
+  const now = new Date(Date.UTC(2026, 6, 1, 12, 0, 0))
+  const MIN = 60_000
+  const HOUR = 60 * MIN
+  const DAY = 24 * HOUR
+  const left = (ms: number) => remainingLabel(new Date(now.getTime() + ms), now)
+
+  test('end == now is over, one millisecond left is still 1m', () => {
+    expect(left(0)).toBeNull()
+    expect(left(-1)).toBeNull()
+    expect(left(1)).toBe('1m')
+  })
+
+  test('minutes roll to hours at exactly 60m', () => {
+    expect(left(59 * MIN)).toBe('59m')
+    expect(left(60 * MIN - 1)).toBe('59m')
+    expect(left(60 * MIN)).toBe('1h')
+  })
+
+  test('hours roll to days at exactly 24h', () => {
+    expect(left(24 * HOUR - 1)).toBe('23h')
+    expect(left(24 * HOUR)).toBe('1d')
+  })
+
+  test('days roll to months at exactly 30d', () => {
+    expect(left(30 * DAY - 1)).toBe('29d')
+    expect(left(30 * DAY)).toBe('1mo')
+    expect(left(60 * DAY)).toBe('2mo')
+  })
+})

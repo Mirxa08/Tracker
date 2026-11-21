@@ -12,6 +12,8 @@ vi.mock('./db', async (importOriginal) => {
 })
 
 const SEED_BYTES = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0x00, 0xde, 0xad, 0xbe, 0xef, 0x42, 0x17])
+// Different length and content, so bytes attached to the wrong event are observable.
+const SECOND_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06])
 
 beforeEach(async () => {
   for (const p of await listProjects()) await deleteProject(p.id)
@@ -29,7 +31,8 @@ async function imageKeys(): Promise<string[]> {
 async function seeded() {
   let p = addTrack(createProject('Wuthering Waves'), 'Banners')
   p = addTrack(p, 'Events')
-  p = { ...p, settings: { theme: 'dark' } }
+  // A fixed creation time, so a round-trip that re-stamps it cannot pass by coincidence.
+  p = { ...p, settings: { theme: 'dark' }, createdAt: '2026-07-01T10:00:00.000Z' }
   await putImage({
     id: 'img_seed',
     blob: new Blob([SEED_BYTES], { type: 'image/webp' }),
@@ -45,12 +48,19 @@ async function seeded() {
     imageId: 'img_seed',
     notes: { columns: ['Resource', 'Left'], rows: [['Astrite', '12000'], ['Lunite', '3']] },
   })
+  await putImage({
+    id: 'img_second',
+    blob: new Blob([SECOND_BYTES], { type: 'image/png' }),
+    width: 10,
+    height: 10,
+  })
   p = addEvent(p, {
     trackId: p.tracks[1].id,
     name: 'Patch Window',
     start: '2026-11-12T06:15:00.000Z',
     end: '2026-11-14T22:00:00.000Z',
     color: '#16a085',
+    imageId: 'img_second',
   })
   await putProject(p)
   return p
@@ -60,7 +70,7 @@ test('buildExport embeds images when asked', async () => {
   const p = await seeded()
   const file = await buildExport(p, { includeImages: true })
   expect(file.schemaVersion).toBe(SCHEMA_VERSION)
-  expect(Object.keys(file.images)).toEqual(['img_seed'])
+  expect(Object.keys(file.images).sort()).toEqual(['img_second', 'img_seed'])
   expect(file.images.img_seed.startsWith('data:image/webp;base64,')).toBe(true)
 })
 
@@ -103,6 +113,8 @@ test('export then import round-trips the project content', async () => {
   const imported = await importFromJson(json)
 
   expect(imported.name).toBe(p.name)
+  expect(imported.createdAt).toBe('2026-07-01T10:00:00.000Z')
+  expect(imported.createdAt).toBe(p.createdAt)
   expect(imported.settings).toEqual(p.settings)
   expect(imported.settings.theme).toBe('dark')
 
@@ -157,6 +169,21 @@ test('import stores embedded images under fresh ids and relinks the events', asy
   // Byte-for-byte: a data URL encodes both the bytes and the MIME type.
   expect(await blobToDataUrl(stored!.blob))
     .toBe(await blobToDataUrl(new Blob([SEED_BYTES], { type: 'image/webp' })))
+})
+
+test('each imported event gets the bytes of its own image', async () => {
+  const p = await seeded()
+  const imported = await importFromJson(serializeExport(await buildExport(p, { includeImages: true })))
+  const [first, second] = imported.events
+  expect(first.imageId).toBeDefined()
+  expect(second.imageId).toBeDefined()
+  expect(first.imageId).not.toBe(second.imageId)
+  const firstStored = await getImage(first.imageId!)
+  const secondStored = await getImage(second.imageId!)
+  expect(await blobToDataUrl(firstStored!.blob))
+    .toBe(await blobToDataUrl(new Blob([SEED_BYTES], { type: 'image/webp' })))
+  expect(await blobToDataUrl(secondStored!.blob))
+    .toBe(await blobToDataUrl(new Blob([SECOND_BYTES], { type: 'image/png' })))
 })
 
 test('import of a structure-only file leaves events without images', async () => {
