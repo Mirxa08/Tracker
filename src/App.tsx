@@ -114,6 +114,8 @@ function Workspace() {
             onReorderTracks={(orderedIds) => {
               dispatch({ type: 'applyProject', project: reorderTracks(project, orderedIds) })
             }}
+            // The reducer's own action, which records the undo entry the status line shows.
+            onDeleteTrack={(trackId) => dispatch({ type: 'deleteTrack', trackId })}
             onChangeDates={(eventId, dates) => {
               try {
                 dispatch({ type: 'applyProject', project: updateEvent(project, eventId, dates) })

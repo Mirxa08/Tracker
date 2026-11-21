@@ -80,6 +80,23 @@ test('a new project is added, selected, and switching back returns to the first'
   await waitFor(async () => expect(await listProjects()).toHaveLength(2))
 })
 
+test('deleting a track from the gutter is confirmed, then undoable by its own label', async () => {
+  const project = seedable('Tracks')
+  await putProject(project)
+  render(<App />)
+  await userEvent.click(await screen.findByRole('button', { name: 'Delete Banners' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Delete track' }))
+
+  expect(screen.queryByTestId('track-row')).toBeNull()
+  // The reducer's label, reaching the user through the app's one status line.
+  expect(screen.getByRole('status')).toHaveTextContent('Deleted track "Banners"')
+
+  await userEvent.click(screen.getByRole('button', { name: 'Undo' }))
+  expect(await screen.findByTestId('track-row')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: /Lily Banner/ })).toBeInTheDocument()
+  expect(screen.queryByRole('status')).toBeNull()
+})
+
 test('deleting a project removes its row and keeps the sibling, by id', async () => {
   const keep = createProject('Keep me')
   const doomed = createProject('Doomed')

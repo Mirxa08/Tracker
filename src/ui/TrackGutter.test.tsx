@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {
-  addEvent, addTrack, createProject, renameTrack, reorderTracks, setTrackCollapsed,
+  addEvent, addTrack, createProject, deleteTrack, renameTrack, reorderTracks, setTrackCollapsed,
 } from '../domain/project'
 import type { Project } from '../domain/schema'
 import { TrackGutter, dropIndex, movedOrder } from './TrackGutter'
@@ -28,6 +28,7 @@ function renderGutter(project: Project, props: Partial<Parameters<typeof TrackGu
   const onAdd = vi.fn()
   const onRename = vi.fn()
   const onReorder = vi.fn()
+  const onDelete = vi.fn()
   render(
     <TrackGutter
       project={project}
@@ -35,10 +36,11 @@ function renderGutter(project: Project, props: Partial<Parameters<typeof TrackGu
       onToggleCollapse={onToggleCollapse}
       onRename={onRename}
       onReorder={onReorder}
+      onDelete={onDelete}
       {...props}
     />,
   )
-  return { onToggleCollapse, onAdd, onRename, onReorder }
+  return { onToggleCollapse, onAdd, onRename, onReorder, onDelete }
 }
 
 /**
@@ -54,6 +56,7 @@ function Harness({ initial }: { initial: Project }) {
       onToggleCollapse={(id, collapsed) => setProject((p) => setTrackCollapsed(p, id, collapsed))}
       onRename={(id, name) => setProject((p) => renameTrack(p, id, name))}
       onReorder={(ids) => setProject((p) => reorderTracks(p, ids))}
+      onDelete={(id) => setProject((p) => deleteTrack(p, id))}
     />
   )
 }
@@ -310,6 +313,87 @@ test('a cancelled drag drops the preview and changes nothing', () => {
   expect(names()).toEqual(['Banners', 'Combat', 'Patches'])
   expect(screen.getAllByTestId('track-label').map((el) => el.className).join(' '))
     .not.toContain('track-label--drop')
+})
+
+// ------------------------------------------------------------------------------ delete ----
+
+async function openConfirm(name = 'Banners') {
+  await userEvent.click(screen.getByRole('button', { name: `Delete ${name}` }))
+  return screen.getByRole('dialog')
+}
+
+test('deleting asks first, naming the track and what goes with it', async () => {
+  const { onDelete } = renderGutter(seeded())
+  const dialog = await openConfirm()
+  expect(dialog).toHaveAccessibleName('Delete “Banners”?')
+  expect(dialog).toHaveTextContent('Its 2 events go with it.')
+  expect(dialog).toHaveAttribute('aria-modal', 'true')
+  expect(onDelete).not.toHaveBeenCalled()
+})
+
+test('confirming deletes that track, and only then', async () => {
+  const project = seeded()
+  const { onDelete } = renderGutter(project)
+  await openConfirm()
+  await userEvent.click(screen.getByRole('button', { name: 'Delete track' }))
+  expect(onDelete).toHaveBeenCalledExactlyOnceWith(project.tracks[0].id)
+  expect(screen.queryByRole('dialog')).toBeNull()
+})
+
+test('cancelling deletes nothing and gives focus back to the control that opened it', async () => {
+  const { onDelete } = renderGutter(seeded())
+  const opener = screen.getByRole('button', { name: 'Delete Banners' })
+  await openConfirm()
+  await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+  expect(onDelete).not.toHaveBeenCalled()
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(document.activeElement).toBe(opener)
+})
+
+test('Escape closes the confirmation without deleting', async () => {
+  const { onDelete } = renderGutter(seeded())
+  await openConfirm()
+  await userEvent.keyboard('{Escape}')
+  expect(onDelete).not.toHaveBeenCalled()
+  expect(screen.queryByRole('dialog')).toBeNull()
+})
+
+test('the confirmation takes focus and Tab stays inside it', async () => {
+  renderGutter(seeded())
+  await openConfirm()
+  const cancel = screen.getByRole('button', { name: 'Cancel' })
+  const confirm = screen.getByRole('button', { name: 'Delete track' })
+  expect(document.activeElement).toBe(cancel)
+  await userEvent.tab()
+  expect(document.activeElement).toBe(confirm)
+  await userEvent.tab()
+  expect(document.activeElement).toBe(cancel)
+  await userEvent.tab({ shift: true })
+  expect(document.activeElement).toBe(confirm)
+})
+
+test('a track with no events says so rather than counting to zero', async () => {
+  renderGutter(seeded())
+  expect(await openConfirm('Combat')).toHaveTextContent('It has no events.')
+})
+
+test('a track with one event is not asked about in the plural', async () => {
+  let project = addTrack(createProject('P'), 'Solo')
+  project = addEvent(project, {
+    trackId: project.tracks[0].id,
+    name: 'Only',
+    start: '2026-06-01T00:00:00.000Z',
+    end: '2026-06-02T00:00:00.000Z',
+  })
+  renderGutter(project)
+  expect(await openConfirm('Solo')).toHaveTextContent('Its one event goes with it.')
+})
+
+test('a confirmed delete takes the row with it', async () => {
+  render(<Harness initial={seeded()} />)
+  await userEvent.click(screen.getByRole('button', { name: 'Delete Combat' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Delete track' }))
+  expect(names()).toEqual(['Banners', 'Patches'])
 })
 
 test('a right-button press is not a drag', () => {

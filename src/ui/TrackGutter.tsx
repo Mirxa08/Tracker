@@ -1,10 +1,19 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { eventsForTrack } from '../domain/project'
 import type { Project, Track } from '../domain/schema'
-import { Badge, IconButton, Input } from './sakuga'
+import { Badge, Button, IconButton, Input, Panel } from './sakuga'
+import '../styles/dialog.css'
 
 function countLabel(n: number): string {
   return n === 1 ? '1 event' : `${n} events`
+}
+
+/** What the confirmation says is going with the track. */
+function eventsSentence(n: number): string {
+  if (n === 0) return 'It has no events.'
+  if (n === 1) return 'Its one event goes with it.'
+  return `Its ${n} events go with it.`
 }
 
 /** `ids` with the entry at `from` lifted out and dropped at `to`. */
@@ -38,16 +47,19 @@ export function TrackGutter({
   onToggleCollapse,
   onRename,
   onReorder,
+  onDelete,
 }: {
   project: Project
   onAdd: (trackId: string) => void
   onToggleCollapse: (trackId: string, collapsed: boolean) => void
   onRename: (trackId: string, name: string) => void
   onReorder: (orderedIds: string[]) => void
+  onDelete: (trackId: string) => void
 }) {
   const gutter = useRef<HTMLDivElement>(null)
   const handles = useRef(new Map<string, HTMLButtonElement | null>())
   const [announcement, setAnnouncement] = useState('')
+  const [confirming, setConfirming] = useState<string | null>(null)
   const [drag, setDrag] = useState<{ id: string; to: number } | null>(null)
   // A reorder re-renders the whole gutter with the rows in a new order; keyboard reordering
   // is only usable if the handle keeps focus, so the moved track's handle is focused again
@@ -62,6 +74,7 @@ export function TrackGutter({
   })
 
   const tracks = project.tracks
+  const confirmedTrack = tracks.find((t) => t.id === confirming) ?? null
   const commitMove = (from: number, to: number) => {
     if (to === from || to < 0 || to >= tracks.length) return
     const track = tracks[from]
@@ -134,10 +147,22 @@ export function TrackGutter({
           onAdd={onAdd}
           onToggleCollapse={onToggleCollapse}
           onRename={onRename}
+          onDelete={setConfirming}
           onHandleKeyDown={onHandleKeyDown(index)}
           onHandlePointerDown={onHandlePointerDown(index)}
         />
       ))}
+      {confirmedTrack && (
+        <ConfirmDelete
+          track={confirmedTrack}
+          eventCount={eventsForTrack(project, confirmedTrack.id).length}
+          onCancel={() => setConfirming(null)}
+          onConfirm={() => {
+            setConfirming(null)
+            onDelete(confirmedTrack.id)
+          }}
+        />
+      )}
       {/* Reordering is otherwise silent for anyone who cannot see the rows move. aria-live
           without role="status": the app's undo line is the page's one status role, and a
           second one would make "the status message" ambiguous to a screen reader and to a
@@ -164,6 +189,7 @@ function TrackLabel({
   onAdd,
   onToggleCollapse,
   onRename,
+  onDelete,
   onHandleKeyDown,
   onHandlePointerDown,
 }: {
@@ -177,6 +203,7 @@ function TrackLabel({
   onAdd: (trackId: string) => void
   onToggleCollapse: (trackId: string, collapsed: boolean) => void
   onRename: (trackId: string, name: string) => void
+  onDelete: (trackId: string) => void
   onHandleKeyDown: (event: React.KeyboardEvent) => void
   onHandlePointerDown: (event: React.PointerEvent) => void
 }) {
@@ -247,6 +274,9 @@ function TrackLabel({
         <IconButton label={`Rename ${track.name}`} onClick={() => setDraft(track.name)}>
           {'✎'}
         </IconButton>
+        <IconButton label={`Delete ${track.name}`} onClick={() => onDelete(track.id)}>
+          {'×'}
+        </IconButton>
       </span>
     </div>
   )
@@ -290,5 +320,80 @@ function NameEditor({
       }}
       onBlur={(e) => onCommit(e.target.value)}
     />
+  )
+}
+
+/**
+ * The delete confirmation: it names the track and says the events go with it, because the
+ * canvas may be scrolled away from them and "delete" alone does not say how much.
+ *
+ * Rendered into document.body rather than into the gutter. The gutter is a z-index 40 sticky
+ * layer and so a stacking context of its own, which would trap this backdrop's z-index 70
+ * inside it and let the corner (50) and the detail panel (60) paint over a modal.
+ */
+function ConfirmDelete({
+  track,
+  eventCount,
+  onConfirm,
+  onCancel,
+}: {
+  track: Track
+  eventCount: number
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  const titleId = useId()
+  const panel = useRef<HTMLElement>(null)
+  const cancelRef = useRef(onCancel)
+  cancelRef.current = onCancel
+
+  // Escape closes, the dialog takes focus on open and hands it back on close, and Tab cycles
+  // within it: a modal that lets Tab wander behind the backdrop is not modal.
+  useEffect(() => {
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const buttons = () => [...(panel.current?.querySelectorAll<HTMLElement>('button') ?? [])]
+    buttons()[0]?.focus()
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        cancelRef.current()
+        return
+      }
+      if (event.key !== 'Tab') return
+      const items = buttons()
+      if (items.length === 0) return
+      const first = items[0]
+      const last = items[items.length - 1]
+      if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      }
+    }
+
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      opener?.focus()
+    }
+  }, [])
+
+  return createPortal(
+    <div className="dialog__backdrop" onPointerDown={(e) => { if (e.target === e.currentTarget) onCancel() }}>
+      <Panel as="section" className="dialog" role="dialog" aria-modal="true" aria-labelledby={titleId} ref={panel}>
+        <h2 className="dialog__title" id={titleId}>Delete “{track.name}”?</h2>
+        <p className="dialog__prose">
+          {eventsSentence(eventCount)} You can undo this straight afterwards.
+        </p>
+        <div className="dialog__actions">
+          <Button onClick={onCancel}>Cancel</Button>
+          <Button variant="danger" onClick={onConfirm}>Delete track</Button>
+        </div>
+      </Panel>
+    </div>,
+    document.body,
   )
 }
