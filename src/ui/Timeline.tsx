@@ -25,12 +25,14 @@ export function Timeline({
   project,
   onAddToTrack = noop,
   onSelectEvent = noop,
+  onToggleCollapse = noop,
   onChangeDates,
 }: {
   ref?: Ref<TimelineHandle>
   project: Project
   onAddToTrack?: (trackId: string) => void
   onSelectEvent?: (eventId: string) => void
+  onToggleCollapse?: (trackId: string, collapsed: boolean) => void
   onChangeDates?: (eventId: string, dates: { start: string; end: string }) => void
 }) {
   // The coarse minute tick is deliberate: it is only needed to roll the view over at
@@ -74,14 +76,18 @@ export function Timeline({
   return (
     <div className="timeline__viewport" ref={viewport}>
       <div className="timeline" style={{ ['--day-width' as string]: `${DAY_WIDTH}px` }}>
-        <TrackGutter project={project} onAdd={onAddToTrack} />
+        <TrackGutter project={project} onAdd={onAddToTrack} onToggleCollapse={onToggleCollapse} />
         <div className="timeline__scroll">
           <div className="timeline__canvas" style={{ width }}>
             <HeaderBands days={days} months={months} />
             <NowMarker viewStart={bounds.start} />
             {project.tracks.map((track) => (
-              <div key={track.id} className="track-row" data-testid="track-row">
-                {eventsForTrack(project, track.id).map((event) => (
+              <div
+                key={track.id}
+                className={['track-row', track.collapsed && 'track-row--collapsed'].filter(Boolean).join(' ')}
+                data-testid="track-row"
+              >
+                {!track.collapsed && eventsForTrack(project, track.id).map((event) => (
                   <EventBar
                     key={event.id}
                     event={event}

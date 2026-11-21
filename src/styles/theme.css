@@ -12,6 +12,9 @@
   --now: #ff6b7a;
   --gutter-width: 190px;
   --row-height: 40px;
+  /* The slim height a collapsed track's row takes in BOTH columns. 28px is the height of a
+     Sakuga IconButton, so the row's own controls still fit without clipping. */
+  --row-collapsed-height: 28px;
   --row-gap: 8px;
   --header-height: 56px;
   /* Shape and motion are theme-independent: one scale for every themed block below. */

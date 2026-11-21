@@ -113,23 +113,45 @@
 .day-column--today { color: var(--fg); font-weight: 600; }
 .day-column__weekday { display: block; opacity: 0.75; }
 
-.track-row {
-  position: relative;
+/*
+ * THE ONE SOURCE OF ROW HEIGHT. The gutter and the canvas are two separate columns and a
+ * row in one must be exactly as tall as its twin in the other, or every track below a
+ * collapsed one is misaligned. Both selectors are in the same rule, so the height and the
+ * gap are declared once per state and cannot drift apart. Add a state by adding a rule
+ * that names BOTH classes — never one of them.
+ * TrackGutter.align.test.tsx reads the two computed heights back and asserts they match.
+ */
+.track-row,
+.track-label {
   height: var(--row-height);
   margin-bottom: var(--row-gap);
 }
+
+.track-row--collapsed,
+.track-label--collapsed {
+  height: var(--row-collapsed-height);
+}
+
+.track-row { position: relative; }
 
 .track-label {
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: var(--row-height);
-  margin-bottom: var(--row-gap);
-  padding: 0 10px;
+  gap: 6px;
+  padding: 0 8px;
   font-weight: 500;
 }
 
-.track-label__name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The slim row: the controls are the tallest thing in it, so it loses the padding rather
+   than clipping them, and the name shrinks to whatever is left. */
+.track-label--collapsed {
+  padding: 0 6px;
+  color: var(--muted);
+}
+
+.track-label__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.track-label__count { flex: none; }
 
 .track-label__swatch {
   width: 8px;
