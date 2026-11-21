@@ -315,3 +315,116 @@ test('closes without submitting on cancel', async () => {
   expect(onClose).toHaveBeenCalled()
   expect(onSubmit).not.toHaveBeenCalled()
 })
+
+describe('dismissal and focus', () => {
+  const open = (props: Partial<React.ComponentProps<typeof EventDialog>> = {}) =>
+    render(<EventDialog project={seeded()} dialog={{ mode: 'add' }} onClose={() => {}} onSubmit={() => {}} {...props} />)
+
+  test('Escape closes the dialog without saving', async () => {
+    const onClose = vi.fn()
+    const onSubmit = vi.fn()
+    open({ onClose, onSubmit })
+    await userEvent.type(screen.getByLabelText(/event name/i), 'Half typed')
+    await userEvent.keyboard('{Escape}')
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  test('Escape still closes after a click on the backdrop dropped focus out of the form', async () => {
+    const onClose = vi.fn()
+    open({ onClose })
+    ;(document.activeElement as HTMLElement).blur()
+    expect(document.activeElement).toBe(document.body)
+    await userEvent.keyboard('{Escape}')
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  test('focus moves into the dialog when it opens', () => {
+    open()
+    const dialog = screen.getByRole('dialog')
+    expect(dialog.contains(document.activeElement)).toBe(true)
+    expect(screen.getByLabelText(/event name/i)).toHaveFocus()
+  })
+
+  test('Tab from the last control wraps to the first', async () => {
+    open()
+    screen.getByRole('button', { name: /save/i }).focus()
+    await userEvent.tab()
+    expect(screen.getByLabelText(/event name/i)).toHaveFocus()
+  })
+
+  test('Shift+Tab from the first control wraps to the last', async () => {
+    open()
+    expect(screen.getByLabelText(/event name/i)).toHaveFocus()
+    await userEvent.tab({ shift: true })
+    expect(screen.getByRole('button', { name: /save/i })).toHaveFocus()
+  })
+
+  test('Tab pulls focus back in when it has strayed outside the dialog', async () => {
+    // A control behind the dialog comes first in the document, so without the trap a Tab
+    // from <body> would land on it rather than inside the modal.
+    const behind = document.createElement('button')
+    document.body.prepend(behind)
+    try {
+      open()
+      ;(document.activeElement as HTMLElement).blur()
+      await userEvent.tab()
+      expect(behind).not.toHaveFocus()
+      expect(screen.getByLabelText(/event name/i)).toHaveFocus()
+      ;(document.activeElement as HTMLElement).blur()
+      await userEvent.tab({ shift: true })
+      expect(behind).not.toHaveFocus()
+      expect(screen.getByRole('button', { name: /save/i })).toHaveFocus()
+    } finally {
+      behind.remove()
+    }
+  })
+
+  test('Tab in the middle of the dialog moves on normally', async () => {
+    open()
+    await userEvent.tab()
+    expect(screen.getByLabelText(/^track/i)).toHaveFocus()
+  })
+
+  test('focus returns to the control that opened the dialog', () => {
+    const opener = document.createElement('button')
+    document.body.append(opener)
+    opener.focus()
+    const view = open()
+    expect(opener).not.toHaveFocus()
+    view.unmount()
+    expect(opener).toHaveFocus()
+    opener.remove()
+  })
+})
+
+describe('validation message', () => {
+  test('clears once the offending field is corrected', async () => {
+    const onSubmit = vi.fn()
+    render(<EventDialog project={seeded()} dialog={{ mode: 'add' }} onClose={() => {}} onSubmit={onSubmit} />)
+    await userEvent.click(screen.getByRole('button', { name: /save/i }))
+    expect(screen.getByRole('alert')).toHaveTextContent(/name/i)
+    await userEvent.type(screen.getByLabelText(/event name/i), 'A')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  test('stays while a different field changes', async () => {
+    render(<EventDialog project={addTrack(seeded(), 'Combat')} dialog={{ mode: 'add' }} onClose={() => {}} onSubmit={() => {}} />)
+    await userEvent.click(screen.getByRole('button', { name: /save/i }))
+    await userEvent.selectOptions(screen.getByLabelText(/^track/i), 'Combat')
+    await userEvent.type(screen.getByLabelText(/^start/i), '2026-11-10T00:00')
+    expect(screen.getByRole('alert')).toHaveTextContent(/name/i)
+  })
+
+  test('an end-before-start message clears when either date is fixed', async () => {
+    render(<EventDialog project={seeded()} dialog={{ mode: 'add' }} onClose={() => {}} onSubmit={() => {}} />)
+    await userEvent.type(screen.getByLabelText(/event name/i), 'Test')
+    await userEvent.type(screen.getByLabelText(/^start/i), '2026-11-10T00:00')
+    await userEvent.type(screen.getByLabelText(/^end/i), '2026-11-09T00:00')
+    await userEvent.click(screen.getByRole('button', { name: /save/i }))
+    expect(screen.getByRole('alert')).toHaveTextContent(/after/i)
+    await userEvent.clear(screen.getByLabelText(/^start/i))
+    await userEvent.type(screen.getByLabelText(/^start/i), '2026-11-08T00:00')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+})

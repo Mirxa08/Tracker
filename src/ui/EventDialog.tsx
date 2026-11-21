@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { addEvent, updateEvent } from '../domain/project'
 import type { Notes, Project } from '../domain/schema'
 import { storeImageFile } from '../persistence/images'
@@ -16,6 +16,12 @@ export type EventDraft = {
   imageId?: string
   notes?: Notes
 }
+
+type Field = 'name' | 'track' | 'start' | 'end' | 'image'
+type FormError = { message: string; fields: Field[] }
+
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 export type SubmittedDraft = EventDraft & { eventId?: string }
 
@@ -54,27 +60,75 @@ export function EventDialog({
   // undefined means "use the chosen track's colour": the input shows that colour and the
   // draft omits `color`, so the event keeps following its track until one is picked.
   const [colorChoice, setColorChoice] = useState<string | undefined>(editing?.color)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<FormError | null>(null)
+  const formRef = useRef<HTMLFormElement>(null)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+
+  const fail = (message: string, ...fields: Field[]) => setError({ message, fields })
+  // A message stays only while the field it blames is untouched; fixing that field clears it.
+  const touched = (field: Field) =>
+    setError((current) => (current && current.fields.includes(field) ? null : current))
+
+  // Escape closes without saving. Tab stays inside the dialog, cycling at both ends, and the
+  // dialog takes focus on open (and hands it back on close). Listening on the document, not
+  // the form, keeps both working when a click on the backdrop has dropped focus to <body>.
+  useEffect(() => {
+    const form = formRef.current
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    form?.querySelector<HTMLElement>(FOCUSABLE)?.focus()
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        if (event.defaultPrevented) return
+        event.preventDefault()
+        onCloseRef.current()
+        return
+      }
+      if (event.key !== 'Tab' || !form) return
+      const items = [...form.querySelectorAll<HTMLElement>(FOCUSABLE)]
+      if (items.length === 0) return
+      const first = items[0]
+      const last = items[items.length - 1]
+      const active = document.activeElement
+      if (!form.contains(active)) {
+        event.preventDefault()
+        ;(event.shiftKey ? last : first).focus()
+      } else if (event.shiftKey && active === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      if (opener?.isConnected) opener.focus()
+    }
+  }, [])
   const trackColor = project.tracks.find((t) => t.id === trackId)?.color ?? '#000000'
 
   async function pickImage(file: File | undefined) {
     if (!file) return
     try {
       setImageId(await storeImageFile(file))
+      touched('image')
     } catch {
-      setError('That image could not be processed.')
+      fail('That image could not be processed.', 'image')
     }
   }
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (!name.trim()) return setError('Give the event a name.')
-    if (!trackId) return setError('Create a track first, then add events to it.')
-    if (!start) return setError('A start is required.')
-    if (!end) return setError('An end is required.')
+    if (!name.trim()) return fail('Give the event a name.', 'name')
+    if (!trackId) return fail('Create a track first, then add events to it.', 'track')
+    if (!start) return fail('A start is required.', 'start')
+    if (!end) return fail('An end is required.', 'end')
     const startIso = fromLocalInputValue(start)
     const endIso = fromLocalInputValue(end)
-    if (Date.parse(endIso) <= Date.parse(startIso)) return setError('The end must be after the start.')
+    if (Date.parse(endIso) <= Date.parse(startIso)) return fail('The end must be after the start.', 'start', 'end')
 
     const draft: SubmittedDraft = {
       trackId,
@@ -91,30 +145,30 @@ export function EventDialog({
 
   return (
     <div className="dialog__backdrop" role="dialog" aria-modal="true" aria-label={editing ? 'Edit event' : 'Add event'}>
-      <form className="dialog" onSubmit={submit}>
+      <form ref={formRef} className="dialog" onSubmit={submit}>
         <h2>{editing ? 'Edit event' : 'Add event'}</h2>
-        {error && <p role="alert">{error}</p>}
+        {error && <p role="alert">{error.message}</p>}
 
         <label>
           Event name
-          <input value={name} onChange={(e) => setName(e.target.value)} />
+          <input value={name} onChange={(e) => { setName(e.target.value); touched('name') }} />
         </label>
 
         <label>
           Track
-          <select value={trackId} onChange={(e) => setTrackId(e.target.value)}>
+          <select value={trackId} onChange={(e) => { setTrackId(e.target.value); touched('track') }}>
             {project.tracks.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
         </label>
 
         <label>
           Start
-          <input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} />
+          <input type="datetime-local" value={start} onChange={(e) => { setStart(e.target.value); touched('start') }} />
         </label>
 
         <label>
           End
-          <input type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} />
+          <input type="datetime-local" value={end} onChange={(e) => { setEnd(e.target.value); touched('end') }} />
         </label>
 
         <label>
