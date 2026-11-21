@@ -27,6 +27,7 @@ export function Timeline({
   onSelectEvent = noop,
   onToggleCollapse = noop,
   onRenameTrack = noop,
+  onReorderTracks = noop,
   onChangeDates,
 }: {
   ref?: Ref<TimelineHandle>
@@ -35,6 +36,7 @@ export function Timeline({
   onSelectEvent?: (eventId: string) => void
   onToggleCollapse?: (trackId: string, collapsed: boolean) => void
   onRenameTrack?: (trackId: string, name: string) => void
+  onReorderTracks?: (orderedIds: string[]) => void
   onChangeDates?: (eventId: string, dates: { start: string; end: string }) => void
 }) {
   // The coarse minute tick is deliberate: it is only needed to roll the view over at
@@ -83,6 +85,7 @@ export function Timeline({
           onAdd={onAddToTrack}
           onToggleCollapse={onToggleCollapse}
           onRename={onRenameTrack}
+          onReorder={onReorderTracks}
         />
         <div className="timeline__scroll">
           <div className="timeline__canvas" style={{ width }}>

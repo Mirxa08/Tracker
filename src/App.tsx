@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import {
-  addTrack, createProject, renameTrack, setTheme, setTrackCollapsed, updateEvent,
+  addTrack, createProject, renameTrack, reorderTracks, setTheme, setTrackCollapsed, updateEvent,
 } from './domain/project'
 import { buildExport, exportFileName, importFromJson, serializeExport } from './persistence/transfer'
 import { StoreProvider, useStore } from './state/StoreProvider'
@@ -110,6 +110,9 @@ function Workspace() {
             }}
             onRenameTrack={(trackId, name) => {
               dispatch({ type: 'applyProject', project: renameTrack(project, trackId, name) })
+            }}
+            onReorderTracks={(orderedIds) => {
+              dispatch({ type: 'applyProject', project: reorderTracks(project, orderedIds) })
             }}
             onChangeDates={(eventId, dates) => {
               try {

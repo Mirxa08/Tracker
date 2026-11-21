@@ -1,8 +1,11 @@
-import { render, screen } from '@testing-library/react'
+import { useState } from 'react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { addEvent, addTrack, createProject, setTrackCollapsed } from '../domain/project'
+import {
+  addEvent, addTrack, createProject, renameTrack, reorderTracks, setTrackCollapsed,
+} from '../domain/project'
 import type { Project } from '../domain/schema'
-import { TrackGutter } from './TrackGutter'
+import { TrackGutter, dropIndex, movedOrder } from './TrackGutter'
 
 function seeded(): Project {
   const now = Date.now()
@@ -24,16 +27,43 @@ function renderGutter(project: Project, props: Partial<Parameters<typeof TrackGu
   const onToggleCollapse = vi.fn()
   const onAdd = vi.fn()
   const onRename = vi.fn()
+  const onReorder = vi.fn()
   render(
     <TrackGutter
       project={project}
       onAdd={onAdd}
       onToggleCollapse={onToggleCollapse}
       onRename={onRename}
+      onReorder={onReorder}
       {...props}
     />,
   )
-  return { onToggleCollapse, onAdd, onRename }
+  return { onToggleCollapse, onAdd, onRename, onReorder }
+}
+
+/**
+ * The gutter with the project actually applied, so a reorder really does move the rows —
+ * which is the only way to tell whether the handle keeps focus across the re-render.
+ */
+function Harness({ initial }: { initial: Project }) {
+  const [project, setProject] = useState(initial)
+  return (
+    <TrackGutter
+      project={project}
+      onAdd={() => {}}
+      onToggleCollapse={(id, collapsed) => setProject((p) => setTrackCollapsed(p, id, collapsed))}
+      onRename={(id, name) => setProject((p) => renameTrack(p, id, name))}
+      onReorder={(ids) => setProject((p) => reorderTracks(p, ids))}
+    />
+  )
+}
+
+function names(): string[] {
+  return screen.getAllByTestId('track-label').map((el) => el.querySelector('.track-label__name')!.textContent!)
+}
+
+function announcement(): string {
+  return screen.getByRole('status').textContent ?? ''
 }
 
 test('the chevron asks for the opposite of the track\'s current state', async () => {
@@ -161,4 +191,130 @@ test('committing the name unchanged asks for nothing', async () => {
   const input = await startRename()
   await userEvent.type(input, '{Enter}')
   expect(onRename).not.toHaveBeenCalled()
+})
+
+// ----------------------------------------------------------------------------- reorder ----
+
+test('movedOrder lifts one id out and drops it at the new index', () => {
+  expect(movedOrder(['a', 'b', 'c'], 0, 1)).toEqual(['b', 'a', 'c'])
+  expect(movedOrder(['a', 'b', 'c'], 2, 0)).toEqual(['c', 'a', 'b'])
+  expect(movedOrder(['a', 'b', 'c'], 1, 1)).toEqual(['a', 'b', 'c'])
+  // Out of range clamps rather than dropping an id: every track must survive a reorder.
+  expect(movedOrder(['a', 'b', 'c'], 0, 9)).toEqual(['b', 'c', 'a'])
+  expect(movedOrder(['a', 'b', 'c'], 2, -4)).toEqual(['c', 'a', 'b'])
+})
+
+test('dropIndex picks the row whose middle the pointer has not passed, at mixed heights', () => {
+  // A collapsed row (28px) between two full ones (40px), with the 8px gaps.
+  const boxes = [{ top: 100, height: 40 }, { top: 148, height: 28 }, { top: 184, height: 40 }]
+  expect(dropIndex(boxes, 100)).toBe(0)
+  expect(dropIndex(boxes, 119)).toBe(0)
+  expect(dropIndex(boxes, 121)).toBe(1)
+  expect(dropIndex(boxes, 161)).toBe(1)
+  expect(dropIndex(boxes, 163)).toBe(2)
+  expect(dropIndex(boxes, 9999)).toBe(2)
+})
+
+test('Alt+ArrowDown moves the track down and keeps focus on the handle for the next press', async () => {
+  render(<Harness initial={seeded()} />)
+  expect(names()).toEqual(['Banners', 'Combat', 'Patches'])
+  screen.getByRole('button', { name: /^Reorder Banners/ }).focus()
+
+  await userEvent.keyboard('{Alt>}{ArrowDown}{/Alt}')
+  expect(names()).toEqual(['Combat', 'Banners', 'Patches'])
+  expect(announcement()).toBe('Banners moved to position 2 of 3')
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Reorder Banners, position 2 of 3' }))
+
+  // The second press continues from where the first left off, without re-focusing anything.
+  await userEvent.keyboard('{Alt>}{ArrowDown}{/Alt}')
+  expect(names()).toEqual(['Combat', 'Patches', 'Banners'])
+  expect(announcement()).toBe('Banners moved to position 3 of 3')
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Reorder Banners, position 3 of 3' }))
+})
+
+test('Alt+ArrowUp moves the track up', async () => {
+  render(<Harness initial={seeded()} />)
+  screen.getByRole('button', { name: /^Reorder Patches/ }).focus()
+  await userEvent.keyboard('{Alt>}{ArrowUp}{/Alt}')
+  expect(names()).toEqual(['Banners', 'Patches', 'Combat'])
+  expect(announcement()).toBe('Patches moved to position 2 of 3')
+})
+
+test('a move past either end does nothing and announces nothing', async () => {
+  render(<Harness initial={seeded()} />)
+  screen.getByRole('button', { name: /^Reorder Banners/ }).focus()
+  await userEvent.keyboard('{Alt>}{ArrowUp}{/Alt}')
+  expect(names()).toEqual(['Banners', 'Combat', 'Patches'])
+  expect(announcement()).toBe('')
+
+  screen.getByRole('button', { name: /^Reorder Patches/ }).focus()
+  await userEvent.keyboard('{Alt>}{ArrowDown}{/Alt}')
+  expect(names()).toEqual(['Banners', 'Combat', 'Patches'])
+  expect(announcement()).toBe('')
+})
+
+test('the arrows alone are left to the screen reader', async () => {
+  render(<Harness initial={seeded()} />)
+  screen.getByRole('button', { name: /^Reorder Banners/ }).focus()
+  await userEvent.keyboard('{ArrowDown}{ArrowUp}')
+  expect(names()).toEqual(['Banners', 'Combat', 'Patches'])
+  expect(announcement()).toBe('')
+})
+
+/** jsdom measures everything as zero, so the rows are given real boxes to drag between. */
+function layOutRows(height = 40, gap = 8) {
+  screen.getAllByTestId('track-label').forEach((el, i) => {
+    el.getBoundingClientRect = () =>
+      ({ top: 100 + i * (height + gap), height, bottom: 100 + i * (height + gap) + height }) as DOMRect
+  })
+}
+
+test('dragging a handle onto another row reorders, and shows what it is doing', () => {
+  render(<Harness initial={seeded()} />)
+  layOutRows()
+  const handle = screen.getByRole('button', { name: /^Reorder Banners/ })
+  fireEvent.pointerDown(handle, { button: 0, clientY: 110 })
+  expect(screen.getAllByTestId('track-label')[0].className).toContain('track-label--dragging')
+
+  fireEvent.pointerMove(handle, { clientY: 210 })
+  expect(screen.getAllByTestId('track-label')[2].className).toContain('track-label--drop')
+
+  fireEvent.pointerUp(handle, { clientY: 210 })
+  expect(names()).toEqual(['Combat', 'Patches', 'Banners'])
+  expect(announcement()).toBe('Banners moved to position 3 of 3')
+  expect(screen.getAllByTestId('track-label').map((el) => el.className).join(' '))
+    .not.toContain('track-label--dragging')
+})
+
+test('a drag released where it started changes nothing', () => {
+  render(<Harness initial={seeded()} />)
+  layOutRows()
+  const handle = screen.getByRole('button', { name: /^Reorder Banners/ })
+  fireEvent.pointerDown(handle, { button: 0, clientY: 110 })
+  fireEvent.pointerMove(handle, { clientY: 115 })
+  fireEvent.pointerUp(handle, { clientY: 115 })
+  expect(names()).toEqual(['Banners', 'Combat', 'Patches'])
+  expect(announcement()).toBe('')
+})
+
+test('a cancelled drag drops the preview and changes nothing', () => {
+  render(<Harness initial={seeded()} />)
+  layOutRows()
+  const handle = screen.getByRole('button', { name: /^Reorder Banners/ })
+  fireEvent.pointerDown(handle, { button: 0, clientY: 110 })
+  fireEvent.pointerMove(handle, { clientY: 210 })
+  fireEvent.pointerCancel(handle)
+  expect(names()).toEqual(['Banners', 'Combat', 'Patches'])
+  expect(screen.getAllByTestId('track-label').map((el) => el.className).join(' '))
+    .not.toContain('track-label--drop')
+})
+
+test('a right-button press is not a drag', () => {
+  render(<Harness initial={seeded()} />)
+  layOutRows()
+  const handle = screen.getByRole('button', { name: /^Reorder Banners/ })
+  fireEvent.pointerDown(handle, { button: 2, clientY: 110 })
+  fireEvent.pointerMove(handle, { clientY: 210 })
+  fireEvent.pointerUp(handle, { clientY: 210 })
+  expect(names()).toEqual(['Banners', 'Combat', 'Patches'])
 })
