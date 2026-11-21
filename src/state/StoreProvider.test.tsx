@@ -1,6 +1,6 @@
 import { act, cleanup, render } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { addTrack, createProject } from '../domain/project'
+import { addEvent, addTrack, createProject } from '../domain/project'
 import type { Project } from '../domain/schema'
 import * as db from '../persistence/db'
 import { currentProject, initialState, type Action, type State } from './reducer'
@@ -13,6 +13,7 @@ vi.mock('../persistence/db', async (importOriginal) => {
     listProjects: vi.fn(actual.listProjects),
     putProject: vi.fn(actual.putProject),
     deleteProject: vi.fn(actual.deleteProject),
+    deleteImage: vi.fn(actual.deleteImage),
   }
 })
 
@@ -37,6 +38,7 @@ function storage() {
 async function resetStorage() {
   const real = await storage()
   for (const p of await real.listProjects()) await real.deleteProject(p.id)
+  await (await real.openDb()).clear('images')
 }
 
 function writes() {
@@ -140,4 +142,162 @@ test('removing a project deletes its stored row and a pending edit does not resu
   await Promise.all(vi.mocked(db.deleteProject).mock.results.map((r) => r.value))
   expect(await real.getProject(project.id)).toBeUndefined()
   expect(await real.getProject(other.id)).toBeDefined()
+})
+
+// ---- Image sweep ------------------------------------------------------------------------
+// Image records are global (one store, keyed by image id only), so these tests seed several
+// projects and assert on what survives, not just on what is removed.
+
+const blob = () => new Blob([new Uint8Array([1, 2, 3])], { type: 'image/webp' })
+
+async function seedImage(id: string) {
+  await (await storage()).putImage({ id, blob: blob(), width: 1, height: 1 })
+}
+
+async function imageIds(): Promise<string[]> {
+  return ((await (await storage()).openDb()).getAllKeys('images')).then((keys) => keys.map(String).sort())
+}
+
+function withImageEvent(base: Project, imageId: string, name = 'Banner'): Project {
+  return addEvent(base, {
+    trackId: base.tracks[0].id,
+    name,
+    start: '2026-07-05T08:00:00.000Z',
+    end: '2026-07-09T08:00:00.000Z',
+    imageId,
+  })
+}
+
+/** Let the debounced write land, then the sweep it triggers and every deletion it starts. */
+async function settle() {
+  act(() => { vi.advanceTimersByTime(DEBOUNCE_MS) })
+  await act(async () => {
+    await Promise.all(vi.mocked(db.putProject).mock.results.map((r) => r.value))
+    await Promise.resolve()
+    await Promise.all(vi.mocked(db.deleteImage).mock.results.map((r) => r.value))
+  })
+}
+
+test('the sweep keeps an image that an event still references', async () => {
+  const live = withImageEvent(project, 'img_live')
+  await seedImage('img_live')
+  await mount([live])
+  // An unrelated edit to the same project triggers a write, and so a sweep.
+  act(() => dispatch({ type: 'applyProject', project: addTrack(live, 'Combat') }))
+  await settle()
+  expect(db.putProject).toHaveBeenCalled()
+  expect(db.deleteImage).not.toHaveBeenCalled()
+  expect(await imageIds()).toEqual(['img_live'])
+})
+
+test('deleting an event removes its image once the undo window has passed', async () => {
+  const live = withImageEvent(project, 'img_gone')
+  await seedImage('img_gone')
+  await mount([live])
+  act(() => dispatch({ type: 'deleteEvent', eventId: live.events[0].id }))
+  await settle()
+  // The undo entry still holds the event, so its image must survive for undo to work.
+  expect(await imageIds()).toEqual(['img_gone'])
+  // Any later change clears the undo entry; the next write sweeps the orphan.
+  act(() => dispatch({ type: 'applyProject', project: addTrack(currentProject(latest)!, 'Combat') }))
+  await settle()
+  expect(await imageIds()).toEqual([])
+})
+
+test('undoing a delete restores an event whose image is still stored', async () => {
+  const live = withImageEvent(project, 'img_undo')
+  await seedImage('img_undo')
+  await mount([live])
+  act(() => dispatch({ type: 'deleteEvent', eventId: live.events[0].id }))
+  await settle()
+  act(() => dispatch({ type: 'undo' }))
+  await settle()
+  expect(currentProject(latest)!.events[0].imageId).toBe('img_undo')
+  expect(await imageIds()).toEqual(['img_undo'])
+})
+
+test('clearing an event image removes the record', async () => {
+  const live = withImageEvent(project, 'img_cleared')
+  await seedImage('img_cleared')
+  await mount([live])
+  const cleared = { ...live, events: live.events.map((e) => ({ ...e, imageId: undefined })) }
+  act(() => dispatch({ type: 'applyProject', project: cleared }))
+  await settle()
+  expect(await imageIds()).toEqual([])
+})
+
+test("sweeping one project never removes another project's images", async () => {
+  const mine = withImageEvent(project, 'img_mine')
+  const theirs = withImageEvent(addTrack(other, 'Side'), 'img_theirs', 'Theirs')
+  await seedImage('img_mine')
+  await seedImage('img_theirs')
+  await mount([mine, theirs])
+  // Drop my event's image; the other project is not the one being saved.
+  act(() => dispatch({ type: 'applyProject', project: { ...mine, events: [] } }))
+  act(() => dispatch({ type: 'applyProject', project: addTrack({ ...mine, events: [] }, 'Combat') }))
+  await settle()
+  expect(await imageIds()).toEqual(['img_theirs'])
+})
+
+test('an image that was never referenced in this session is never swept', async () => {
+  // Stands for an upload still sitting in an open dialog, an import in flight, or a record
+  // another tab owns: none of them is referenced by anything this session has seen.
+  await seedImage('img_unseen')
+  await mount([project])
+  act(() => dispatch({ type: 'applyProject', project: addTrack(project, 'Combat') }))
+  await settle()
+  expect(db.deleteImage).not.toHaveBeenCalled()
+  expect(await imageIds()).toEqual(['img_unseen'])
+})
+
+test('removing a project sweeps the images only it referenced', async () => {
+  const mine = withImageEvent(project, 'img_removed')
+  const theirs = withImageEvent(addTrack(other, 'Side'), 'img_kept', 'Theirs')
+  await seedImage('img_removed')
+  await seedImage('img_kept')
+  await mount([mine, theirs])
+  act(() => dispatch({ type: 'removeProject', projectId: mine.id }))
+  await settle()
+  await act(async () => {
+    await Promise.all(vi.mocked(db.deleteProject).mock.results.map((r) => r.value))
+    await Promise.resolve()
+    await Promise.all(vi.mocked(db.deleteImage).mock.results.map((r) => r.value))
+  })
+  expect(await imageIds()).toEqual(['img_kept'])
+})
+
+test('a session whose storage failed to open deletes nothing', async () => {
+  await seedImage('img_precious')
+  vi.mocked(db.listProjects).mockRejectedValueOnce(new db.StorageError('No storage.'))
+  render(<StoreProvider><Probe /></StoreProvider>)
+  await act(async () => {})
+  const session = currentProject(latest)!
+  const withImage = withImageEvent(addTrack(session, 'Banners'), 'img_precious')
+  act(() => dispatch({ type: 'applyProject', project: withImage }))
+  act(() => dispatch({ type: 'applyProject', project: { ...withImage, events: [] } }))
+  await settle()
+  expect(db.deleteImage).not.toHaveBeenCalled()
+  expect(await imageIds()).toEqual(['img_precious'])
+})
+
+test('an image the stored copy still references survives until a newer write replaces it', async () => {
+  const live = withImageEvent(project, 'img_inflight')
+  await seedImage('img_inflight')
+  await mount([live])
+  // Write 1 (still references the image) is in flight when the edit that clears it lands in
+  // state. Disk is behind state, so sweeping now could orphan a stored reference on a crash.
+  act(() => dispatch({ type: 'applyProject', project: addTrack(live, 'Combat') }))
+  act(() => { vi.advanceTimersByTime(DEBOUNCE_MS) })
+  expect(db.putProject).toHaveBeenCalledTimes(1)
+  const cleared = { ...live, events: [] }
+  act(() => dispatch({ type: 'applyProject', project: cleared }))
+  await act(async () => {
+    await vi.mocked(db.putProject).mock.results[0].value
+    await Promise.resolve()
+  })
+  expect(db.deleteImage).not.toHaveBeenCalled()
+  expect(await imageIds()).toEqual(['img_inflight'])
+  // The newer write then lands and the image is finally unreferenced everywhere.
+  await settle()
+  expect(await imageIds()).toEqual([])
 })
