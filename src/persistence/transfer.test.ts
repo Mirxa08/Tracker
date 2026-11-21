@@ -83,8 +83,18 @@ test('serializeExport produces indented JSON', () => {
 
 test('exportFileName is filesystem-safe and dated', () => {
   const p = createProject('Wuthering Waves: Banners!')
-  expect(exportFileName(p, new Date('2026-11-20T00:00:00.000Z')))
+  expect(exportFileName(p, new Date(2026, 10, 20, 0, 0)))
     .toBe('wuthering-waves-banners-2026-11-20.json')
+})
+
+test('exportFileName uses the local calendar day, not the UTC one', () => {
+  // The suite runs in Europe/London (vite.config.ts). Half past midnight local time on a BST
+  // date is 23:30 UTC the day before, so a UTC-based name would say the 19th. A November (GMT)
+  // fixture could never tell the two apart.
+  const p = createProject('Day')
+  const justAfterMidnightBst = new Date(2026, 6, 20, 0, 30)
+  expect(justAfterMidnightBst.getUTCDate()).toBe(19) // guards the fixture itself
+  expect(exportFileName(p, justAfterMidnightBst)).toBe('day-2026-07-20.json')
 })
 
 test('export then import round-trips the project content', async () => {

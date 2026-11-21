@@ -225,6 +225,11 @@ test('the include-images toggle changes the exported payload', async () => {
 test('the Now button scrolls the timeline to the now-line', async () => {
   const scrollTo = vi.fn()
   HTMLElement.prototype.scrollTo = scrollTo as unknown as typeof HTMLElement.prototype.scrollTo
+  const GUTTER = 190
+  const VIEWPORT = 1000
+  // jsdom has no layout: stub the two measurements the jump reads.
+  Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, get: () => GUTTER })
+  Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get: () => VIEWPORT })
   try {
     const project = seedable('Scroll')
     await putProject(project)
@@ -232,17 +237,38 @@ test('the Now button scrolls the timeline to the now-line', async () => {
     await screen.findByRole('button', { name: /Lily Banner/ })
     scrollTo.mockClear() // ignore the on-mount scroll
     await userEvent.click(screen.getByRole('button', { name: 'Now' }))
-    // jsdom has no layout, so clientWidth is 0 and the target is the now-line's x itself.
     const now = new Date()
-    const expected = xForTime(now, projectBounds(project, now).start)
-    expect(expected).toBeGreaterThan(0)
+    const x = xForTime(now, projectBounds(project, now).start)
     expect(scrollTo).toHaveBeenCalledTimes(1)
     const arg = scrollTo.mock.calls[0][0] as { left: number; behavior: string }
     expect(arg.behavior).toBe('smooth')
+    // The now-line appears at gutter + x - scrollLeft; it should be a third across the visible canvas.
+    const lineX = GUTTER + x - arg.left
     // The click happens a few ms after `now` was read, so allow a pixel of clock drift.
-    expect(Math.abs(arg.left - expected)).toBeLessThan(1)
+    expect(Math.abs(lineX - (GUTTER + (VIEWPORT - GUTTER) / 3))).toBeLessThan(1)
   } finally {
     // @ts-expect-error restoring jsdom's lack of scrollTo
     delete HTMLElement.prototype.scrollTo
+    // @ts-expect-error restoring jsdom defaults
+    delete HTMLElement.prototype.offsetWidth
+    // @ts-expect-error restoring jsdom defaults
+    delete HTMLElement.prototype.clientWidth
   }
+})
+
+test('an earlier import error disappears once a later import succeeds', async () => {
+  const original = seedable('Original')
+  await putProject(original)
+  const exported = await buildExport(original, { includeImages: false })
+
+  render(<App />)
+  await screen.findByRole('button', { name: /Lily Banner/ })
+  const input = screen.getByLabelText(/import/i)
+  await userEvent.upload(input, new File(['not json {'], 'x.json', { type: 'application/json' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent(/could not be read as JSON/)
+
+  await userEvent.upload(input, new File([serializeExport(exported)], 'ok.json', { type: 'application/json' }))
+  const select = screen.getByLabelText(/project/i) as HTMLSelectElement
+  await waitFor(() => expect(select.options).toHaveLength(2))
+  expect(screen.queryByRole('alert')).toBeNull()
 })

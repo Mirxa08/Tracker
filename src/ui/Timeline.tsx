@@ -47,12 +47,14 @@ export function Timeline({
   const viewport = useRef<HTMLDivElement>(null)
   const hasTracks = project.tracks.length > 0
 
-  // Puts the now-line a third of the way across the viewport.
+  // Puts the now-line a third of the way across the visible canvas: the viewport minus the
+  // sticky gutter that covers its left edge.
   const scrollToNow = (behavior: ScrollBehavior) => {
     const el = viewport.current
     if (!el) return
+    const gutterWidth = el.querySelector<HTMLElement>('.timeline__gutter')?.offsetWidth ?? 0
     el.scrollTo?.({
-      left: Math.max(0, xForTime(new Date(), bounds.start) - el.clientWidth / 3),
+      left: Math.max(0, xForTime(new Date(), bounds.start) - (el.clientWidth - gutterWidth) / 3),
       behavior,
     })
   }
