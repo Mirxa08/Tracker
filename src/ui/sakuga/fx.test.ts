@@ -1,7 +1,8 @@
 import { afterEach, expect, test, vi } from 'vitest'
+import fxCss from '../../styles/fx.css?raw'
 import {
-  animating, clack, core, crack, dust, impact, land, pop, quietPress, shatter, slashAt, spark,
-  squash, trail, type SakugaCore,
+  animating, clack, core, crack, dust, impact, land, palette, pop, quietPress, shatter,
+  slashAt, spark, squash, tint, trail, type SakugaCore,
 } from './fx'
 
 /**
@@ -44,6 +45,15 @@ function stub(options: { calm?: boolean; box?: Partial<ReturnType<SakugaCore['at
     kira: record('kira'),
     sfx: vi.fn((word: string, ...rest: unknown[]) => { calls.push({ name: `sfx:${word}`, args: rest }) }),
     hollow: () => ({ col: '#ffffff', edge: '#1d1a4a' }),
+    // Upstream's own light "ink and paper" palette, which is what tint() has to replace.
+    P: {
+      fill: '#ffffff',
+      shade: '#b8b3ff',
+      line: '#5a4fd8',
+      accent: '#ff5fa8',
+      ink: '#1d1a4a',
+      sfx: ['#1d1a4a', '#ffffff'] as [string, string],
+    },
   }
   vi.stubGlobal('SakugaFX', fx as unknown as SakugaCore)
   return { calls, fx, names: () => calls.map((c) => c.name) }
@@ -200,6 +210,60 @@ test('the hollow lettering styles are the core\'s own, not re-invented here', ()
   pop(element())
   const letters = calls.find((c) => c.name === 'sfx:pon')!
   expect(letters.args[2]).toMatchObject({ col: '#ffffff', edge: '#1d1a4a' })
+})
+
+// --------------------------------------------------------------------- theming -----------
+
+test('tint writes the theme\'s palette into the live object the core paints from', () => {
+  const { fx } = stub()
+  tint('dark')
+  expect(fx.P).toMatchObject(palette('dark'))
+  tint('light')
+  expect(fx.P).toMatchObject(palette('light'))
+})
+
+test('tint with no core loaded does nothing rather than throwing', () => {
+  expect(core()).toBeNull()
+  expect(() => tint('dark')).not.toThrow()
+})
+
+test('the two palettes differ where it matters: the outline, the accent and the lettering', () => {
+  const dark = palette('dark')
+  const light = palette('light')
+  // A deep violet outline sinks into a near-black page, so dark lifts it.
+  expect(dark.line).not.toBe(light.line)
+  expect(dark.accent).not.toBe(light.accent)
+  // And the lettering inverts: a dark word with a white halo on paper, a white word with a
+  // violet edge on black. Upstream's order is [fill, outline].
+  expect(dark.sfx[0]).not.toBe(light.sfx[0])
+  expect(light.sfx[0]).toBe('#1d1a4a')
+  expect(dark.sfx[0]).toBe('#ffffff')
+})
+
+test('tint is not gated on calm: the palette must be right before motion is allowed again', () => {
+  const { fx } = stub({ calm: true })
+  tint('dark')
+  expect(fx.P).toMatchObject(palette('dark'))
+})
+
+test('fx.css overrides the core\'s ink-and-paper defaults for both themes', () => {
+  // The core injects :where(:root){--sk-card:#fff;--sk-ink:#1d1a4a;…} at zero specificity.
+  for (const selector of [':root', ":root[data-theme='light']"]) {
+    const block = new RegExp(`${selector.replace(/[[\]']/g, '\\$&')}\\s*\\{([^}]*)\\}`).exec(fxCss)
+    expect(block, selector).not.toBeNull()
+    for (const name of ['--sk-card', '--sk-ink', '--sk-acc', '--sk-soft']) {
+      expect(block![1], `${selector} ${name}`).toContain(name)
+    }
+  }
+  // Dark is the default here as everywhere else: :root is not the light palette.
+  expect(/:root\s*\{[^}]*--sk-card:\s*#0e1016/.test(fxCss)).toBe(true)
+  // And the file says, in as many words, that these variables do not colour the effects:
+  // believing they do is how a visual change ships that nobody can see.
+  expect(fxCss).toMatch(/do NOT colour the effects/)
+})
+
+test('the effects canvas never takes a click, whatever else it paints over', () => {
+  expect(/canvas\.sakuga-fx\s*\{[^}]*pointer-events:\s*none/.test(fxCss)).toBe(true)
 })
 
 // -------------------------------------------------------------------- the press ----------

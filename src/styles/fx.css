@@ -1,0 +1,79 @@
+/*
+ * The anime effects layer, themed.
+ *
+ * The vendored core (public/sakuga-vfx/core.js) injects its own defaults as
+ * `:where(:root){--sk-card:#fff;--sk-ink:#1d1a4a;…}`. :where() holds them at zero
+ * specificity so a page's own :root wins, which is what this file uses.
+ *
+ * READ THIS BEFORE EDITING. These custom properties do NOT colour the effects. The core
+ * paints every cloud, outline, crystal and letter from a JavaScript palette object (`P`),
+ * and the --sk-* variables only ever reach the shadow DOM of upstream's custom elements —
+ * which this app deliberately does not use. Retinting the effects for a theme is therefore
+ * done in JS, by `tint()` in src/ui/sakuga/fx.ts, and that is where the colours that are
+ * actually visible live. This file exists so that the one-off defaults the core writes onto
+ * :root are this app's palette rather than upstream's ink-and-paper light theme, for
+ * anything that does read them. Changing a value here and expecting the smoke to change
+ * colour is exactly the mistake that shipped a visual change nobody could see.
+ *
+ * Listed in test.css.include (vite.config.ts): a CSS file vitest does not include is
+ * silently blanked, and fx.test.ts asserts on this text.
+ */
+
+/* Dark is the default, as everywhere else in this app. */
+:root {
+  --sk-card: #0e1016;
+  --sk-ink: #e8eaf2;
+  --sk-dim: #8b90a3;
+  --sk-soft: #7b6ff0;
+  --sk-pri: #8f8df7;
+  --sk-pri-ink: #07080c;
+  --sk-acc: #ff6b7a;
+  --sk-track: #23262d;
+  --sk-tick: var(--sk-ink);
+  --sk-fill: var(--sk-acc);
+  --sk-on-pri: #07080c;
+}
+
+:root[data-theme='light'] {
+  --sk-card: #ffffff;
+  --sk-ink: #1d1a4a;
+  --sk-dim: #666c78;
+  --sk-soft: #b8b3ff;
+  --sk-pri: #8f8df7;
+  --sk-pri-ink: #1d1a4a;
+  --sk-acc: #ff5fa8;
+  --sk-track: #c9cbe0;
+  --sk-tick: var(--sk-ink);
+  --sk-fill: var(--sk-acc);
+  --sk-on-pri: #ffffff;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    --sk-card: #ffffff;
+    --sk-ink: #1d1a4a;
+    --sk-dim: #666c78;
+    --sk-soft: #b8b3ff;
+    --sk-pri: #8f8df7;
+    --sk-pri-ink: #1d1a4a;
+    --sk-acc: #ff5fa8;
+    --sk-track: #c9cbe0;
+    --sk-tick: var(--sk-ink);
+    --sk-fill: var(--sk-acc);
+    --sk-on-pri: #ffffff;
+  }
+}
+
+/*
+ * The effects canvas. The core appends one fixed, full-page `canvas.sakuga-fx` and gives it
+ * `pointer-events:none` and z-index 2147483000 — far above this app's own scale (bars 10,
+ * now-line 20, bands 30, gutter 40, corner 50, detail 60, dialog backdrop 70). That is
+ * deliberate and is restated here rather than changed: an effect has to paint over the
+ * sticky gutter and over a modal, because the controls that fire it live in both, and
+ * nothing may ever paint over a modal and take its clicks. pointer-events is repeated here
+ * as a belt-and-braces guarantee, since a canvas that swallowed clicks would make the whole
+ * app unusable.
+ */
+canvas.sakuga-fx {
+  pointer-events: none;
+}

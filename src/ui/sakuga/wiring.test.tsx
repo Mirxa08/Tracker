@@ -42,6 +42,16 @@ function installCore() {
     kira: note('kira'),
     sfx: (word: string) => { fired.push(`sfx:${word}`) },
     hollow: () => ({ col: '#ffffff', edge: '#1d1a4a' }),
+    // The real core's palette object, which the theme retints in place; the colours are
+    // not what this file is about, but a stub without it is not a core.
+    P: {
+      fill: '#ffffff',
+      shade: '#b8b3ff',
+      line: '#5a4fd8',
+      accent: '#ff5fa8',
+      ink: '#1d1a4a',
+      sfx: ['#1d1a4a', '#ffffff'] as [string, string],
+    },
   }
   vi.stubGlobal('SakugaFX', fx as unknown as SakugaCore)
 }

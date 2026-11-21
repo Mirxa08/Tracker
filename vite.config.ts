@@ -17,6 +17,6 @@ export default defineConfig({
     // optional ?query such as ?raw), so only these exact files match.
     // tailwind.css is deliberately NOT here: it is the Tailwind entry, it is imported only by
     // main.tsx (which no test loads), and nothing asserts on its text.
-    css: { include: [/[\\/](?:theme|timeline|event-bar|detail|dialog|sakuga)\.css(?:\?.*)?$/] },
+    css: { include: [/[\\/](?:theme|timeline|event-bar|detail|dialog|sakuga|fx)\.css(?:\?.*)?$/] },
   },
 })

@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import type { Theme } from '../domain/schema'
+import { tint } from './sakuga/fx'
 
 /** The media query 'system' resolves through. Light is the signal; no signal means dark. */
 export const LIGHT_QUERY = '(prefers-color-scheme: light)'
@@ -20,12 +21,19 @@ export function resolveTheme(theme: Theme, prefersLight: boolean): 'dark' | 'lig
  *
  * The attribute is always written, never left absent: without it theme.css would fall back
  * to its media query, which is how the setting came to look implemented while being dead.
+ *
+ * The effects palette is retinted here too, because this is the one place the theme is
+ * actually resolved — including live, for a project set to follow the system. The effects
+ * are painted from a JavaScript palette, not from CSS variables, so a stylesheet could not
+ * have done it; see src/styles/fx.css.
  */
 export function useAppliedTheme(theme: Theme): void {
   useEffect(() => {
     const query = window.matchMedia?.(LIGHT_QUERY)
     const apply = () => {
-      document.documentElement.dataset.theme = resolveTheme(theme, query?.matches ?? false)
+      const resolved = resolveTheme(theme, query?.matches ?? false)
+      document.documentElement.dataset.theme = resolved
+      tint(resolved)
     }
     apply()
     if (theme !== 'system' || !query?.addEventListener) return

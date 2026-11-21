@@ -13,6 +13,7 @@ import { Timeline, type TimelineHandle } from './ui/Timeline'
 import { useAppliedTheme } from './ui/useTheme'
 import { Button, crack } from './ui/sakuga'
 import './styles/theme.css'
+import './styles/fx.css'
 import './styles/app.css'
 
 function Workspace() {

@@ -39,8 +39,29 @@ type Effect = (x: number, y: number, opts?: Record<string, unknown>) => unknown
  * deliberately removed the glow, screentone, smoke, lightning and shockwave effects and the
  * BANG and ズバッ lettering, so there is nothing else to reach for.
  */
+/**
+ * The core's painting palette. It is a live object behind a getter, so writing to it is how
+ * the effects are retinted — there is no setter and no CSS route (see src/styles/fx.css).
+ *
+ *   fill   the lit side of a cloud, crystal or ring
+ *   shade  its shadow side
+ *   line   every outline
+ *   accent the burst spikes, the slash and the sparkle
+ *   ink    the colour the components' --sk-ink defaults to
+ *   sfx    [fill, outline] for the lettering
+ */
+export type FxPalette = {
+  fill: string
+  shade: string
+  line: string
+  accent: string
+  ink: string
+  sfx: [string, string]
+}
+
 export type SakugaCore = {
   readonly calm: boolean
+  readonly P: FxPalette
   at: (el: Element, fx?: number, fy?: number) => FxBox
   squashy: (el: Element, opts?: Record<string, unknown>) => FxSquash
   puff: Effect
@@ -86,6 +107,56 @@ export function animating(): boolean {
 }
 
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v)
+
+// ------------------------------------------------------------------- theming -------------
+
+/**
+ * The palette each theme paints with. Upstream's own is "ink and paper" — a white cloud
+ * with a lavender shadow, a deep violet outline and a dark word under a white halo — which
+ * is right on a light page and weak on this app's near-black default: the outline sinks
+ * into the background and the lettering becomes a dark word nobody can read.
+ *
+ * So dark gets a lighter outline (mid-violet, which still reads against a WHITE cloud as
+ * well as against the page), the app's own --now red for the accent so a slash belongs to
+ * this app, and the lettering inverted: a white word with a violet edge.
+ *
+ * `tint` is called from useAppliedTheme, where the theme is resolved — including live, for
+ * a project set to follow the system.
+ */
+const PALETTES: Record<'dark' | 'light', FxPalette> = {
+  dark: {
+    fill: '#ffffff',
+    shade: '#b4b0f0',
+    line: '#7b6ff0',
+    accent: '#ff6b7a',
+    ink: '#e8eaf2',
+    sfx: ['#ffffff', '#5a4fd8'],
+  },
+  light: {
+    fill: '#ffffff',
+    shade: '#b8b3ff',
+    line: '#5a4fd8',
+    accent: '#ff5fa8',
+    ink: '#1d1a4a',
+    sfx: ['#1d1a4a', '#ffffff'],
+  },
+}
+
+/**
+ * Retint the effects for a theme. Not gated on `calm`: a reader who has asked for reduced
+ * motion sees no effects at all, but if that preference changes mid-session the palette
+ * must already be the right one.
+ */
+export function tint(mode: 'dark' | 'light'): void {
+  const fx = core()
+  if (!fx) return
+  Object.assign(fx.P, PALETTES[mode])
+}
+
+/** The palette a theme paints with. Exported so a test can compare the two. */
+export function palette(mode: 'dark' | 'light'): FxPalette {
+  return PALETTES[mode]
+}
 
 // ---------------------------------------------------------------- throttling -------------
 // A repeat-key or a pointermove storm must not become an effect storm: one puff per
