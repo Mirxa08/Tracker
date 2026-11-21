@@ -11,14 +11,17 @@
       The vendored Sakuga VFX core (public/sakuga-vfx/core.js). A CLASSIC script, not a
       module: the file is an IIFE that sets window.SakugaFX, and as a module it would be
       deferred past the point the app first wants it and its global would still be set
-      late. %BASE_URL% is required rather than a bare "/": the app is served under
-      /Tracker/ on GitHub Pages, where "/sakuga-vfx/core.js" is a 404 that only shows up
-      in production. Verified in the built dist/index.html by a test.
+      late. The src is document-relative rather than a bare "/" or %BASE_URL%: the app is
+      served under /Tracker/ on GitHub Pages, where "/sakuga-vfx/core.js" is a 404 that
+      only shows up in production, and %BASE_URL% is right in the build but gets the base
+      prepended a second time by the dev server, giving /Tracker/Tracker/... locally.
+      "./" resolves against the document in both. Verified in the built dist/index.html by
+      a test.
 
       It loads here and nowhere else, so vitest — which never loads this file — leaves
       window.SakugaFX undefined and src/ui/sakuga/fx.ts no-ops throughout the suite.
     -->
-    <script src="%BASE_URL%sakuga-vfx/core.js"></script>
+    <script src="./sakuga-vfx/core.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

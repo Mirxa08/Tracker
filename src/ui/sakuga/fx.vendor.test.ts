@@ -52,17 +52,19 @@ test('index.html loads it as a classic script under the app\'s base path', () =>
   const [, before, src, after] = tag!
   // A module would be deferred and is not what the file expects.
   expect(`${before}${after}`).not.toMatch(/type\s*=/)
-  // %BASE_URL% and not a bare "/": under /Tracker/ a root-absolute src is a 404 that only
-  // appears in production, which is exactly the mistake this line is written to avoid.
-  expect(src).toBe('%BASE_URL%sakuga-vfx/core.js')
+  // Document-relative, and not a bare "/": under /Tracker/ a root-absolute src is a 404
+  // that only appears in production, which is the mistake this line is written to avoid.
+  // Nor %BASE_URL%, which is right in the build but has the base prepended a second time
+  // by the dev server, so the core silently 404s at /Tracker/Tracker/... while developing.
+  expect(src).toBe('./sakuga-vfx/core.js')
   expect(src.startsWith('/')).toBe(false)
   // And it loads before the app's own entry, so the global is set by the time React mounts.
   expect(index.indexOf('sakuga-vfx/core.js')).toBeLessThan(index.indexOf('src/main.tsx'))
 })
 
-test('the base %BASE_URL% resolves to is the one the site is served from', () => {
-  // Straight from the config, so a change to `base` that would break the built src fails
-  // here rather than on the deployed page.
+test('the base the site is served from is the one the deploy publishes', () => {
+  // Straight from the config. The core's own src is document-relative so it follows the
+  // base automatically, but the app entry does not, so a change here is worth catching.
   expect(config).toMatch(/base:\s*'\/Tracker\/'/)
 })
 
