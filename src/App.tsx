@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   addTrack, createProject, renameTrack, reorderTracks, setTheme, setTrackCollapsed, updateEvent,
 } from './domain/project'
-import { buildExport, exportFileName, importFromJson, serializeExport } from './persistence/transfer'
+import { buildExport, exportFileName, importFromJson, missingImagesMessage, serializeExport } from './persistence/transfer'
 import { StoreProvider, useStore } from './state/StoreProvider'
 import { currentProject } from './state/reducer'
 import { EventDetail } from './ui/EventDetail'
@@ -53,8 +53,14 @@ function Workspace() {
   const exportProject = async (opts: { includeImages: boolean }) => {
     if (!project) return
     try {
-      const file = await buildExport(project, opts)
+      const { file, missingImageIds } = await buildExport(project, opts)
       downloadText(exportFileName(project, new Date()), serializeExport(file))
+      // The download succeeded either way; a miss is a warning about what is NOT in the
+      // file, not a failure, so it goes out after the save and clears on a clean one.
+      dispatch({
+        type: 'error',
+        message: missingImageIds.length > 0 ? missingImagesMessage(project, missingImageIds) : null,
+      })
     } catch (error) {
       fail(error, 'That project could not be exported.')
     }

@@ -3,7 +3,7 @@ import { addEvent, addTrack, createProject } from '../domain/project'
 import { SCHEMA_VERSION } from '../domain/schema'
 import { deleteProject, getImage, listProjects, openDb, putImage, putProject } from './db'
 import { blobToDataUrl } from './images'
-import { buildExport, serializeExport, exportFileName, importFromJson } from './transfer'
+import { buildExport, serializeExport, exportFileName, importFromJson, missingImagesMessage } from './transfer'
 
 // putProject is passed through by default; the cleanup test makes one call reject.
 vi.mock('./db', async (importOriginal) => {
@@ -68,7 +68,7 @@ async function seeded() {
 
 test('buildExport embeds images when asked', async () => {
   const p = await seeded()
-  const file = await buildExport(p, { includeImages: true })
+  const { file } = await buildExport(p, { includeImages: true })
   expect(file.schemaVersion).toBe(SCHEMA_VERSION)
   expect(Object.keys(file.images).sort()).toEqual(['img_second', 'img_seed'])
   expect(file.images.img_seed.startsWith('data:image/webp;base64,')).toBe(true)
@@ -76,7 +76,7 @@ test('buildExport embeds images when asked', async () => {
 
 test('buildExport omits images when not asked', async () => {
   const p = await seeded()
-  const file = await buildExport(p, { includeImages: false })
+  const { file } = await buildExport(p, { includeImages: false })
   expect(file.images).toEqual({})
   expect(file.project.events[0].imageId).toBe('img_seed')
 })
@@ -109,7 +109,7 @@ test('exportFileName uses the local calendar day, not the UTC one', () => {
 
 test('export then import round-trips the project content', async () => {
   const p = await seeded()
-  const json = serializeExport(await buildExport(p, { includeImages: true }))
+  const json = serializeExport((await buildExport(p, { includeImages: true })).file)
   const imported = await importFromJson(json)
 
   expect(imported.name).toBe(p.name)
@@ -137,7 +137,7 @@ test('export then import round-trips the project content', async () => {
 
 test('import relinks every event to a track of the imported project', async () => {
   const p = await seeded()
-  const imported = await importFromJson(serializeExport(await buildExport(p, { includeImages: true })))
+  const imported = await importFromJson(serializeExport((await buildExport(p, { includeImages: true })).file))
   const importedTrackIds = imported.tracks.map((t) => t.id)
 
   for (const e of imported.events) expect(importedTrackIds).toContain(e.trackId)
@@ -149,7 +149,7 @@ test('import relinks every event to a track of the imported project', async () =
 
 test('import creates a new project rather than overwriting the original', async () => {
   const p = await seeded()
-  const json = serializeExport(await buildExport(p, { includeImages: true }))
+  const json = serializeExport((await buildExport(p, { includeImages: true })).file)
   const imported = await importFromJson(json)
   expect(imported.id).not.toBe(p.id)
   expect((await listProjects()).map((x) => x.id).sort()).toEqual([imported.id, p.id].sort())
@@ -157,7 +157,7 @@ test('import creates a new project rather than overwriting the original', async 
 
 test('import stores embedded images under fresh ids and relinks the events', async () => {
   const p = await seeded()
-  const json = serializeExport(await buildExport(p, { includeImages: true }))
+  const json = serializeExport((await buildExport(p, { includeImages: true })).file)
   const imported = await importFromJson(json)
   const newImageId = imported.events[0].imageId
   expect(newImageId).toBeDefined()
@@ -173,7 +173,7 @@ test('import stores embedded images under fresh ids and relinks the events', asy
 
 test('each imported event gets the bytes of its own image', async () => {
   const p = await seeded()
-  const imported = await importFromJson(serializeExport(await buildExport(p, { includeImages: true })))
+  const imported = await importFromJson(serializeExport((await buildExport(p, { includeImages: true })).file))
   const [first, second] = imported.events
   expect(first.imageId).toBeDefined()
   expect(second.imageId).toBeDefined()
@@ -188,7 +188,7 @@ test('each imported event gets the bytes of its own image', async () => {
 
 test('import of a structure-only file leaves events without images', async () => {
   const p = await seeded()
-  const json = serializeExport(await buildExport(p, { includeImages: false }))
+  const json = serializeExport((await buildExport(p, { includeImages: false })).file)
   const imported = await importFromJson(json)
   expect(imported.events[0].imageId).toBeUndefined()
 })
@@ -199,7 +199,7 @@ test('import rejects malformed JSON with a readable message', async () => {
 
 test('import rejects a file from a newer schema version', async () => {
   const p = await seeded()
-  const file = await buildExport(p, { includeImages: false })
+  const { file } = await buildExport(p, { includeImages: false })
   const json = JSON.stringify({ ...file, schemaVersion: SCHEMA_VERSION + 1 })
   await expect(importFromJson(json)).rejects.toThrow(/newer version/i)
 })
@@ -212,9 +212,69 @@ test('a rejected import leaves existing projects untouched', async () => {
 
 test('a failed project write leaves no image records behind', async () => {
   const p = await seeded()
-  const json = serializeExport(await buildExport(p, { includeImages: true }))
+  const json = serializeExport((await buildExport(p, { includeImages: true })).file)
   const before = await imageKeys()
   vi.mocked(putProject).mockRejectedValueOnce(new Error('disk full'))
   await expect(importFromJson(json)).rejects.toThrow('disk full')
   expect(await imageKeys()).toEqual(before)
+})
+
+test('buildExport reports an image the store cannot produce, and still writes the rest', async () => {
+  const p = await seeded()
+  // One of the two seeded blobs goes missing — a cancelled upload, a half-cleared store, a
+  // file the browser evicted. The export is still worth having; the point is that the loss
+  // is reported rather than silent.
+  await (await openDb()).delete('images', 'img_seed')
+  const { file, missingImageIds } = await buildExport(p, { includeImages: true })
+  expect(missingImageIds).toEqual(['img_seed'])
+  expect(Object.keys(file.images)).toEqual(['img_second'])
+  // The event keeps its reference, so the file still says what WAS there. That is exactly
+  // why the miss has to be announced: importing this drops the reference for good.
+  expect(file.project.events[0].imageId).toBe('img_seed')
+})
+
+test('buildExport reports nothing when every image is present', async () => {
+  const p = await seeded()
+  const { missingImageIds } = await buildExport(p, { includeImages: true })
+  expect(missingImageIds).toEqual([])
+})
+
+test('buildExport reports nothing when images were not asked for, having looked for none', async () => {
+  const p = await seeded()
+  await (await openDb()).delete('images', 'img_seed')
+  const { missingImageIds } = await buildExport(p, { includeImages: false })
+  expect(missingImageIds).toEqual([])
+})
+
+test('a missing image is reported once however many events share it', async () => {
+  let p = await seeded()
+  p = addEvent(p, {
+    trackId: p.tracks[0].id,
+    name: 'Rerun',
+    start: '2026-11-20T00:00:00.000Z',
+    end: '2026-11-22T00:00:00.000Z',
+    color: '#8e44ad',
+    imageId: 'img_seed',
+  })
+  await (await openDb()).delete('images', 'img_seed')
+  const { missingImageIds } = await buildExport(p, { includeImages: true })
+  expect(missingImageIds).toEqual(['img_seed'])
+})
+
+test('the message names the events, not the ids, and counts them', async () => {
+  const p = await seeded()
+  const one = missingImagesMessage(p, ['img_seed'])
+  expect(one).toBe('The file was saved, but one image could not be read (Lily Banner) and is not in it.')
+  const two = missingImagesMessage(p, ['img_seed', 'img_second'])
+  expect(two).toBe('The file was saved, but 2 images could not be read (Lily Banner, Patch Window) and are not in it.')
+  // An id is meaningless to the person who has to go and re-add the picture.
+  expect(one).not.toContain('img_')
+  expect(two).not.toContain('img_')
+})
+
+test('the message survives an id that matches no event', async () => {
+  const p = await seeded()
+  expect(missingImagesMessage(p, ['img_gone'])).toBe(
+    'The file was saved, but one image could not be read and is not in it.',
+  )
 })

@@ -173,7 +173,7 @@ test('deleting the only project leaves a fresh usable one, not a blank app', asy
 test('a malformed import names the failing field and leaves stored data untouched', async () => {
   const original = seedable('Original')
   await putProject(original)
-  const image = await buildExport(original, { includeImages: false })
+  const { file: image } = await buildExport(original, { includeImages: false })
   // Valid image payload present, then an event whose end precedes its start: the image
   // must not be written for a file that fails validation.
   const bad = {
@@ -201,7 +201,7 @@ test('a malformed import names the failing field and leaves stored data untouche
 test('a file from a newer schema is rejected with the newer-version message, not imported', async () => {
   const original = seedable('Original')
   await putProject(original)
-  const file = await buildExport(original, { includeImages: false })
+  const { file } = await buildExport(original, { includeImages: false })
   const future = { ...file, schemaVersion: SCHEMA_VERSION + 1 }
 
   render(<App />)
@@ -229,7 +229,7 @@ test('a file that is not JSON is rejected with a readable reason', async () => {
 test('importing a valid file adds a separate, selected project and never overwrites', async () => {
   const original = seedable('Original')
   await putProject(original)
-  const exported = await buildExport(original, { includeImages: false })
+  const { file: exported } = await buildExport(original, { includeImages: false })
 
   render(<App />)
   await screen.findByRole('button', { name: /Lily Banner/ })
@@ -306,7 +306,7 @@ test('the Now button scrolls the timeline to the now-line', async () => {
 test('an earlier import error disappears once a later import succeeds', async () => {
   const original = seedable('Original')
   await putProject(original)
-  const exported = await buildExport(original, { includeImages: false })
+  const { file: exported } = await buildExport(original, { includeImages: false })
 
   render(<App />)
   await screen.findByRole('button', { name: /Lily Banner/ })
@@ -376,4 +376,33 @@ describe('the theme control', () => {
       window.matchMedia = original
     }
   })
+})
+
+test('an export that could not read an image says so, and the next clean one clears it', async () => {
+  const project = seedable('Lost art')
+  // The event points at an image the store does not have: a cancelled upload, a half-cleared
+  // store, a blob the browser evicted. Before this, the file downloaded with the picture
+  // quietly absent and nothing said a word.
+  await putProject({ ...project, events: project.events.map((e) => ({ ...e, imageId: 'img_gone' })) })
+
+  render(<App />)
+  await screen.findByRole('button', { name: /Lily Banner/ })
+
+  await userEvent.click(screen.getByLabelText(/include images/i))
+  await userEvent.click(screen.getByRole('button', { name: /^export$/i }))
+
+  // The file is still saved — the warning is about what is NOT in it.
+  const saved = JSON.parse(await exportedText())
+  expect(saved.images).toEqual({})
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'The file was saved, but one image could not be read (Lily Banner) and is not in it.',
+  )
+
+  // Turning images back off asks for nothing, so there is nothing to miss and the stale
+  // warning must go: an alert left standing would describe a file that no longer exists.
+  vi.mocked(downloadText).mockClear()
+  await userEvent.click(screen.getByLabelText(/include images/i))
+  await userEvent.click(screen.getByRole('button', { name: /^export$/i }))
+  await waitFor(() => expect(downloadText).toHaveBeenCalled())
+  await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
 })
