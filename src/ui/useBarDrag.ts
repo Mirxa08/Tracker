@@ -11,14 +11,6 @@ const MS_PER_DAY = 86_400_000
 /** Pointer travel (px) below which a press is still a click, not a drag. */
 const CLICK_SLOP = 4
 
-export function snapToDay(date: Date): Date {
-  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate())
-  const halfway = start.getTime() + MS_PER_DAY / 2
-  return date.getTime() >= halfway
-    ? new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1)
-    : start
-}
-
 // Calendar-day shift: the wall-clock time of day is kept, so an event that runs midnight to
 // midnight still does after a drag across a daylight-saving change.
 function shiftDays(iso: string, days: number): Date {

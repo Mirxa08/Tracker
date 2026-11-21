@@ -1,6 +1,6 @@
 import type { TrackEvent } from '../domain/schema'
 import { DAY_WIDTH } from '../domain/time'
-import { applyDrag, applyDragHours, dragDates, snapToDay } from './useBarDrag'
+import { applyDrag, applyDragHours, dragDates } from './useBarDrag'
 
 const event: TrackEvent = {
   id: 'e_1', trackId: 't_1', name: 'Lily Banner',
@@ -11,11 +11,6 @@ const event: TrackEvent = {
 
 const HOUR = 3_600_000
 const DAY = 24 * HOUR
-
-test('snapToDay rounds to the nearest midnight', () => {
-  expect(snapToDay(new Date(2026, 10, 5, 13, 0)).getDate()).toBe(6)
-  expect(snapToDay(new Date(2026, 10, 5, 9, 0)).getDate()).toBe(5)
-})
 
 test('moving shifts both ends by the same number of days', () => {
   const moved = applyDrag(event, 'move', 3)
