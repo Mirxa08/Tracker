@@ -347,3 +347,30 @@ tests rather than by the browser.
 
 **375px:** no horizontal page scroll, the 190px gutter holds, the timeline scrolls inside its own
 column. Cramped, but correct.
+
+## 47 — An export that loses an image now says so
+
+This was on the deferred list and you asked for it.
+
+An image the store cannot produce was skipped in silence. The file still downloaded, with the
+event's `imageId` in it and no matching entry in `images` — and importing that file drops the
+reference, so the picture was gone for good with no trace of ever having been there. Three
+ordinary ways to get there: a cancelled upload, a half-cleared store, a blob the browser evicted.
+
+`buildExport` now returns `{ file, missingImageIds }`, and the export path puts a sentence into
+the alert the app already has:
+
+> The file was saved, but one image could not be read (Lily Banner) and is not in it.
+
+It names the events rather than the ids, because `img_7f3a` means nothing to the person who has
+to go and re-add the picture. It is a **warning, not a failure** — the download still happens,
+and the next export that asks for nothing clears the stale message, since an alert left standing
+would describe a file that no longer exists.
+
+Mutation-proved, each watched failing and then restored: dropping the miss fails three tests;
+never dispatching fails the alert assertion; always dispatching fails the clear-on-clean
+assertion; removing the dedupe reports one shared image twice.
+
+**Not verified in a browser.** The export writes a real file to your Downloads folder, so driving
+it from the page would have put a stray JSON file on your machine. It is covered by a test that
+renders the real component and clicks the real button.
