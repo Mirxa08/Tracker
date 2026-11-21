@@ -4,6 +4,7 @@ import { App } from '../../App'
 import { addTrack, createProject } from '../../domain/project'
 import { DAY_WIDTH } from '../../domain/time'
 import type { TrackEvent } from '../../domain/schema'
+import { deleteProject, listProjects, setFlag } from '../../persistence/db'
 import { EventBar } from '../EventBar'
 import { ProjectBar } from '../ProjectBar'
 import { Button, Field, IconButton, Input } from './index'
@@ -58,6 +59,20 @@ function installCore() {
 
 beforeEach(installCore)
 afterEach(() => { vi.unstubAllGlobals() })
+
+/**
+ * Render the whole app on an EMPTY project. The two tests below drive it end to end, and
+ * both start from "nothing on the timeline yet" — so they say so, rather than inheriting
+ * whatever first run does (it seeds an example project full of bars, which would both hide
+ * the "No tracks yet" signal they wait on and add bars neither test put there). Storage is
+ * also cleared, because these two share one fake-indexeddb and the first one's seed would
+ * otherwise be the second one's starting state.
+ */
+async function coldStart() {
+  for (const p of await listProjects()) await deleteProject(p.id)
+  await setFlag('exampleOffered', true)
+  return render(<App />)
+}
 
 /** Everything the controls fired, with the lettering kept: that is half the point. */
 const effects = () => fired
@@ -235,7 +250,7 @@ test('a click that never became a drag neither trails nor rings', () => {
 // ------------------------------------------------------------------ the alert ------------
 
 test('a failure cracks: crystals and no lettering, because an error is not a celebration', async () => {
-  render(<App />)
+  await coldStart()
   // The provider seeds and loads before the toolbar appears.
   const field = await screen.findByLabelText('Import')
   fired = []
@@ -251,7 +266,7 @@ test('a failure cracks: crystals and no lettering, because an error is not a cel
 // ------------------------------------------------------- the bar a Save creates ----------
 
 test('an event created through the dialog bursts in, and editing one does not', async () => {
-  render(<App />)
+  await coldStart()
   const timeline = await screen.findByText(/No tracks yet/)
   expect(timeline).toBeInTheDocument()
 

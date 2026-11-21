@@ -27,6 +27,25 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
+/**
+ * Render the app on an EMPTY project, the way a cold start looked before first-run seeding
+ * existed.
+ *
+ * First run now seeds an example project with two tracks and five bars, because an empty
+ * one showed a new visitor a toolbar and the words "No tracks yet" and nothing else. These
+ * tests are about the toolbar — adding a track, switching project, rejecting a bad import —
+ * and several of them use "No tracks yet" as the signal that the app has finished loading,
+ * which an example project full of bars never shows. So they say which starting state they
+ * want rather than inheriting whatever first run happens to do: the flag marks the example
+ * as already offered, which is the state of every visitor after their first, and the app
+ * then opens on an empty project. What a brand-new visitor gets is StoreProvider's own
+ * test, where it belongs.
+ */
+async function coldStart() {
+  await setFlag('exampleOffered', true)
+  return render(<App />)
+}
+
 function seedable(name: string): Project {
   const base = addTrack(createProject(name), 'Banners')
   const now = Date.now()
@@ -50,12 +69,7 @@ test('a cold start can create a track from the project bar and it is saved', asy
   const prompt = vi.spyOn(window, 'prompt').mockImplementation(() => {
     throw new Error('prompt() is blocked in this context')
   })
-  // A returning visitor's cold start: the example project is offered once and this one has
-  // had it (and deleted it), so storage is empty AND stays empty — which is the state this
-  // test is about. A genuine first run seeds the example instead, and StoreProvider's own
-  // tests cover both.
-  await setFlag('exampleOffered', true)
-  const { unmount } = render(<App />)
+  const { unmount } = await coldStart()
   expect(await screen.findByText(/No tracks yet/)).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Add track' }))
   await userEvent.type(screen.getByRole('textbox', { name: 'Track name' }), 'Banners{Enter}')
@@ -70,7 +84,7 @@ test('a cold start can create a track from the project bar and it is saved', asy
 })
 
 test('cancelling or blanking the new track adds nothing', async () => {
-  render(<App />)
+  await coldStart()
   await screen.findByText(/No tracks yet/)
 
   await userEvent.click(screen.getByRole('button', { name: 'Add track' }))
@@ -83,7 +97,7 @@ test('cancelling or blanking the new track adds nothing', async () => {
 })
 
 test('a new project is added, selected, and switching back returns to the first', async () => {
-  const { unmount } = render(<App />)
+  const { unmount } = await coldStart()
   await screen.findByText(/No tracks yet/)
   const select = screen.getByLabelText(/project/i) as HTMLSelectElement
   const firstId = select.value
@@ -203,7 +217,7 @@ test('a file from a newer schema is rejected with the newer-version message, not
 })
 
 test('a file that is not JSON is rejected with a readable reason', async () => {
-  render(<App />)
+  await coldStart()
   await screen.findByText(/No tracks yet/)
   await userEvent.upload(
     screen.getByLabelText(/import/i),
@@ -309,16 +323,31 @@ test('an earlier import error disappears once a later import succeeds', async ()
 describe('the theme control', () => {
   afterEach(() => { delete document.documentElement.dataset.theme })
 
+  /**
+   * The project bar is painted before storage answers — it has to be, or the toolbar would
+   * flicker in on every load — so the theme radios exist while `project` is still null, and
+   * a click on one reaches an `if (project)` that is not yet true and does nothing.
+   * Awaiting the radiogroup is therefore not awaiting the app: this is. The placeholder is
+   * rendered exactly while there is no current project, so its absence is the load landing.
+   *
+   * It used to be possible to win that race by accident, and the seeding a first run now
+   * does (a flag read, the write, a flag write) made it a race the test lost perhaps one
+   * time in three. The third test in this block already waits properly, and says why.
+   */
+  async function loaded() {
+    await waitFor(() => expect(screen.queryByText('Loading…')).toBeNull())
+  }
+
   test('a new project starts dark and says so on the document root', async () => {
     render(<App />)
-    await screen.findByRole('radiogroup', { name: 'Theme' })
+    await loaded()
     expect(screen.getByRole('radio', { name: 'Dark' })).toBeChecked()
     expect(document.documentElement.dataset.theme).toBe('dark')
   })
 
   test('choosing Light switches the document and is persisted on the project', async () => {
     render(<App />)
-    await screen.findByRole('radiogroup', { name: 'Theme' })
+    await loaded()
     await userEvent.click(screen.getByRole('radio', { name: 'Light' }))
     expect(document.documentElement.dataset.theme).toBe('light')
     // Persisted, not just in the DOM: the choice has to survive a reload.

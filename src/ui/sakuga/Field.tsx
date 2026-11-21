@@ -1,5 +1,5 @@
 import { useId, type ComponentPropsWithRef, type ReactNode } from 'react'
-import { dust } from './fx'
+import { animating, dust } from './fx'
 import '../../styles/sakuga.css'
 
 /** What a Field hands its control: the id its label points at, plus the error wiring. */
@@ -52,13 +52,21 @@ const NO_CARET = new Set(['file', 'color', 'checkbox', 'radio', 'range', 'image'
  * Where the caret is, as a fraction of the way across the field, so the dust lands under
  * the text being typed rather than in the middle of the box. The character count is the
  * best proxy available without measuring glyphs, and for a puff of smoke it is enough.
+ *
+ * Only ever called once there is something to draw: `selectionStart` is specified to throw
+ * InvalidStateError on an input type that does not support selection, and this must not be
+ * a read that happens on every keystroke of every field whatever the outcome.
  */
 function caretFraction(el: HTMLInputElement): number {
   const length = el.value.length
   if (length === 0) return 0
-  // selectionStart is null on an input type that does not support selection.
-  const caret = el.selectionStart ?? length
-  return Math.min(1, caret / length)
+  let caret: number | null = null
+  try {
+    caret = el.selectionStart
+  } catch {
+    // A type that does not support selection; the end of the text is the honest guess.
+  }
+  return Math.min(1, (caret ?? length) / length)
 }
 
 /**
@@ -78,7 +86,9 @@ export function Input({ className, onKeyDown, ...rest }: InputProps) {
         // Printable keys and the two that visibly eat text; not Tab, Escape or the arrows,
         // which move around the field without changing it.
         const types = event.key.length === 1 || event.key === 'Backspace' || event.key === 'Delete'
-        if (types && !NO_CARET.has(el.type)) dust(el, caretFraction(el))
+        // `animating()` first, so that with no effects layer — jsdom, or reduced motion —
+        // a keystroke costs one boolean and reads nothing off the element at all.
+        if (animating() && types && !NO_CARET.has(el.type)) dust(el, caretFraction(el))
         onKeyDown?.(event)
       }}
       className={['sk-input', 'w-full px-2 py-1.5 text-sm', className].filter(Boolean).join(' ')}
