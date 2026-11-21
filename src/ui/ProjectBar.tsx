@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import type { Project, Theme } from '../domain/schema'
-import { Button, Field, Input, Segmented, Select, SpotlightSurface } from './sakuga'
+import { Button, Field, impact, Input, Segmented, Select, slashAt, SpotlightSurface } from './sakuga'
 import '../styles/project-bar.css'
 
 const THEMES: readonly { value: Theme; label: string }[] = [
@@ -51,22 +51,29 @@ export function ProjectBar({
         )}
       </Field>
 
+      {/* These four are primary actions painted in the quiet weight, so they ask for the
+          impact frame explicitly rather than taking the weight's default. */}
       <div className="project-bar__actions">
-        <Button onClick={onCreate}>New project</Button>
-        <Button onClick={onAddTrack}>Add track</Button>
+        <Button fx="impact" onClick={onCreate}>New project</Button>
+        <Button fx="impact" onClick={onAddTrack}>Add track</Button>
         <Button variant="primary" onClick={onAddEvent}>Add event</Button>
-        <Button onClick={onJumpToNow}>Now</Button>
+        <Button fx="impact" onClick={onJumpToNow}>Now</Button>
       </div>
 
       <label className="project-bar__images">
         <input
           type="checkbox"
           checked={includeImages}
-          onChange={(e) => setIncludeImages(e.target.checked)}
+          onChange={(e) => {
+            // The checkbox is upstream's slash: the stroke, the crystals it throws off and
+            // ズザッ. Both ways — unticking is as much a decision as ticking.
+            slashAt(e.currentTarget)
+            setIncludeImages(e.target.checked)
+          }}
         />
         Include images
       </label>
-      <Button onClick={() => onExport({ includeImages })}>Export</Button>
+      <Button fx="impact" onClick={() => onExport({ includeImages })}>Export</Button>
 
       <Field label="Import" className="project-bar__import">
         {(control) => (
@@ -77,6 +84,9 @@ export function ProjectBar({
             accept="application/json,.json"
             onChange={(e) => {
               const file = e.target.files?.[0]
+              // A file input has no caret to puff from, so the import lands as an impact
+              // frame on the control instead — it is one of the toolbar's real actions.
+              if (file) impact(e.currentTarget)
               if (file) onImport(file)
               if (fileInput.current) fileInput.current.value = ''
             }}

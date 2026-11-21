@@ -1,4 +1,5 @@
 import { useId } from 'react'
+import { pop } from './fx'
 import '../../styles/sakuga.css'
 
 export type SegmentedOption<T extends string> = { value: T; label: string }
@@ -19,6 +20,9 @@ export type SegmentedProps<T extends string> = {
  * movement, the "2 of 3" announcement and click-to-select are the platform's. The inputs are
  * clipped rather than hidden with display:none, so focus still lands on them and the ring
  * shows on the label next to them.
+ *
+ * The chosen option pops in: a tick fan and a hollow ポン on the label, through
+ * src/ui/sakuga/fx.ts, so it is absent in jsdom and under reduced motion.
  */
 export function Segmented<T extends string>({
   label,
@@ -45,7 +49,13 @@ export function Segmented<T extends string>({
               name={name}
               value={option.value}
               checked={value === option.value}
-              onChange={() => onChange(option.value)}
+              onChange={(event) => {
+                // On the label, not the clipped 1px input: the label is what the reader
+                // sees take. Fired before the change so it lands even if the re-render
+                // replaces the node.
+                pop(event.currentTarget.nextElementSibling)
+                onChange(option.value)
+              }}
             />
             <label className="sk-seg__label px-2.5 py-0.5 text-xs font-medium" htmlFor={id}>
               {option.label}

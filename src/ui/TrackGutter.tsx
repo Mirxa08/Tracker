@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { eventsForTrack } from '../domain/project'
 import type { Project, Track } from '../domain/schema'
-import { Badge, Button, IconButton, Input, Panel } from './sakuga'
+import { Badge, Button, IconButton, impact, Input, Panel } from './sakuga'
 import '../styles/dialog.css'
 
 function countLabel(n: number): string {
@@ -308,7 +308,8 @@ function NameEditor({
 }: {
   value: string
   onChange: (value: string) => void
-  onCommit: (value: string, reason: 'enter' | 'blur') => void
+  /** `el` is the field itself, so a caller can land an effect on it before it unmounts. */
+  onCommit: (value: string, reason: 'enter' | 'blur', el: HTMLInputElement) => void
   onCancel: () => void
 }) {
   return (
@@ -321,13 +322,13 @@ function NameEditor({
       onKeyDown={(e) => {
         if (e.key === 'Enter') {
           e.preventDefault()
-          onCommit(e.currentTarget.value, 'enter')
+          onCommit(e.currentTarget.value, 'enter', e.currentTarget)
         } else if (e.key === 'Escape') {
           e.preventDefault()
           onCancel()
         }
       }}
-      onBlur={(e) => onCommit(e.target.value, 'blur')}
+      onBlur={(e) => onCommit(e.target.value, 'blur', e.target)}
     />
   )
 }
@@ -363,13 +364,17 @@ export function AddTrack({
           <NameEditor
             value={draft}
             onChange={setDraft}
-            onCommit={(value, reason) => {
+            onCommit={(value, reason, el) => {
               const trimmed = value.trim()
               // Enter on an empty field leaves it open and waiting; clicking away closes it.
               if (!trimmed) {
                 if (reason === 'blur') close()
                 return
               }
+              // The impact frame belongs to the moment a track exists, not to the button
+              // that opened this field — "Add track" and "New track" both only open it.
+              // Fired before close(), which unmounts the field there is a box to measure.
+              impact(el)
               close()
               onCreate(trimmed)
             }}

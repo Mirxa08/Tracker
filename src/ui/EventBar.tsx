@@ -1,7 +1,7 @@
-import type { CSSProperties } from 'react'
+import { useEffect, useRef, type CSSProperties } from 'react'
 import type { TrackEvent } from '../domain/schema'
 import { remainingLabel, xForTime } from '../domain/time'
-import { Badge, spotlightProps } from './sakuga'
+import { Badge, land, spark, spotlightProps, trail } from './sakuga'
 import { useBarDrag } from './useBarDrag'
 import { useImageUrl } from './useImageUrl'
 import '../styles/event-bar.css'
@@ -10,16 +10,20 @@ export function EventBar({
   event,
   viewStart,
   now,
+  justCreated = false,
   onSelect,
   onChangeDates,
 }: {
   event: TrackEvent
   viewStart: Date
   now: Date
+  /** True for the one bar the last Save created: it bursts in rather than appearing. */
+  justCreated?: boolean
   onSelect: (id: string) => void
   onChangeDates?: (dates: { start: string; end: string }) => void
 }) {
   const { onPointerDown, preview } = useBarDrag({ event, onCommit: onChangeDates ?? (() => {}) })
+  const node = useRef<HTMLButtonElement>(null)
   const shown = preview ?? event
   const left = xForTime(shown.start, viewStart)
   const width = Math.max(8, xForTime(shown.end, viewStart) - left)
@@ -38,8 +42,28 @@ export function EventBar({
   // stay distinguishable at a glance.
   const style = { left, width, background: event.color, ['--bar-color']: event.color } as CSSProperties
 
+  // A new bar bursts in with a sparkle. Keyed on the flag rather than on mount, so a bar
+  // that merely scrolled into view, or re-rendered on the minute tick, stays still.
+  useEffect(() => {
+    if (justCreated) spark(node.current)
+  }, [justCreated])
+
+  // Speed lines while it is being dragged, and the impact ring when it is set down.
+  // `preview` is non-null for exactly the duration of a drag, so its edges are the drag's.
+  const wasDragging = useRef(false)
+  useEffect(() => {
+    if (preview) {
+      // Throttled in fx.ts: a pointermove storm must not become an effect storm.
+      trail(node.current, Date.parse(preview.start) >= Date.parse(event.start) ? 'right' : 'left')
+    } else if (wasDragging.current) {
+      land(node.current)
+    }
+    wasDragging.current = preview !== null
+  })
+
   return (
     <button
+      ref={node}
       type="button"
       className={spotlight.className}
       style={style}

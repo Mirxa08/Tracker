@@ -1,4 +1,5 @@
 import { useId, type ComponentPropsWithRef, type ReactNode } from 'react'
+import { dust } from './fx'
 import '../../styles/sakuga.css'
 
 /** What a Field hands its control: the id its label points at, plus the error wiring. */
@@ -44,14 +45,42 @@ export function Field({ label, error, invalid, className, children }: FieldProps
 
 export type InputProps = ComponentPropsWithRef<'input'>
 
+/** Input types with no caret to kick dust up from. */
+const NO_CARET = new Set(['file', 'color', 'checkbox', 'radio', 'range', 'image', 'submit'])
+
+/**
+ * Where the caret is, as a fraction of the way across the field, so the dust lands under
+ * the text being typed rather than in the middle of the box. The character count is the
+ * best proxy available without measuring glyphs, and for a puff of smoke it is enough.
+ */
+function caretFraction(el: HTMLInputElement): number {
+  const length = el.value.length
+  if (length === 0) return 0
+  // selectionStart is null on an input type that does not support selection.
+  const caret = el.selectionStart ?? length
+  return Math.min(1, caret / length)
+}
+
 /**
  * A text, datetime-local, colour or file input with the shared finish: radius --r-sm, the
  * translucent surface, and the same visible focus ring as every other control.
+ *
+ * Typing kicks up a little dust at the caret, as upstream's input does. It is throttled in
+ * fx.ts (one puff per keystroke, not one per repeat-key frame), skipped for the types that
+ * have no caret, and absent entirely in jsdom and under reduced motion.
  */
-export function Input({ className, ...rest }: InputProps) {
+export function Input({ className, onKeyDown, ...rest }: InputProps) {
   return (
     <input
       {...rest}
+      onKeyDown={(event) => {
+        const el = event.currentTarget
+        // Printable keys and the two that visibly eat text; not Tab, Escape or the arrows,
+        // which move around the field without changing it.
+        const types = event.key.length === 1 || event.key === 'Backspace' || event.key === 'Delete'
+        if (types && !NO_CARET.has(el.type)) dust(el, caretFraction(el))
+        onKeyDown?.(event)
+      }}
       className={['sk-input', 'w-full px-2 py-1.5 text-sm', className].filter(Boolean).join(' ')}
     />
   )

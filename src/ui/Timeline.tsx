@@ -33,6 +33,7 @@ export function Timeline({
   onAddingTrackChange = noop,
   onCreateTrack = noop,
   onChangeDates,
+  justCreatedEventId = null,
 }: {
   ref?: Ref<TimelineHandle>
   project: Project
@@ -47,6 +48,8 @@ export function Timeline({
   onAddingTrackChange?: (open: boolean) => void
   onCreateTrack?: (name: string) => void
   onChangeDates?: (eventId: string, dates: { start: string; end: string }) => void
+  /** The event the last Save created, so its bar can burst in. Null the rest of the time. */
+  justCreatedEventId?: string | null
 }) {
   // The coarse minute tick is deliberate: it is only needed to roll the view over at
   // midnight. The per-second clock lives in NowMarker so bars and day columns are not
@@ -125,6 +128,7 @@ export function Timeline({
                     event={event}
                     viewStart={bounds.start}
                     now={today}
+                    justCreated={event.id === justCreatedEventId}
                     onSelect={onSelectEvent}
                     onChangeDates={onChangeDates && ((dates) => onChangeDates(event.id, dates))}
                   />

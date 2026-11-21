@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   addTrack, createProject, renameTrack, reorderTracks, setTheme, setTrackCollapsed, updateEvent,
 } from './domain/project'
@@ -11,7 +11,7 @@ import { downloadText } from './ui/download'
 import { ProjectBar } from './ui/ProjectBar'
 import { Timeline, type TimelineHandle } from './ui/Timeline'
 import { useAppliedTheme } from './ui/useTheme'
-import { Button } from './ui/sakuga'
+import { Button, crack } from './ui/sakuga'
 import './styles/theme.css'
 import './styles/app.css'
 
@@ -21,6 +21,15 @@ function Workspace() {
   const selected = project?.events.find((e) => e.id === state.selectedEventId) ?? null
   const timeline = useRef<TimelineHandle>(null)
   const [addingTrack, setAddingTrack] = useState(false)
+  // The bar the last Save created, so it can burst in once. Cleared by anything else that
+  // happens, so a re-render months later does not animate an old bar.
+  const [justCreatedEventId, setJustCreatedEventId] = useState<string | null>(null)
+  const alert = useRef<HTMLParagraphElement>(null)
+  // Crystals, and no lettering: an error is not a celebration. Keyed on the message, so a
+  // second, different failure cracks again and a re-render of the same one does not.
+  useEffect(() => {
+    if (state.error) crack(alert.current)
+  }, [state.error])
   // Before the first project loads there is nothing to read a setting from, and dark is the
   // default, so that is what the document carries until one arrives.
   const theme = project?.settings.theme ?? 'dark'
@@ -93,11 +102,13 @@ function Workspace() {
         onExport={exportProject}
         onJumpToNow={() => timeline.current?.scrollToNow()}
       />
-      {state.error && <p className="app__alert" role="alert">{state.error}</p>}
+      {state.error && <p className="app__alert" ref={alert} role="alert">{state.error}</p>}
       {state.undo && (
         <p className="app__status" role="status">
           {state.undo.label}
-          <Button onClick={() => dispatch({ type: 'undo' })}>Undo</Button>
+          {/* A hollow カチ and nothing else: undo is a small, quiet correction, and a burst
+              would read as though something had just been achieved. */}
+          <Button fx="clack" onClick={() => dispatch({ type: 'undo' })}>Undo</Button>
         </p>
       )}
       {project
@@ -118,6 +129,7 @@ function Workspace() {
             }}
             // The reducer's own action, which records the undo entry the status line shows.
             onDeleteTrack={(trackId) => dispatch({ type: 'deleteTrack', trackId })}
+            justCreatedEventId={justCreatedEventId}
             addingTrack={addingTrack}
             onAddingTrackChange={setAddingTrack}
             onCreateTrack={createTrack}
@@ -146,8 +158,12 @@ function Workspace() {
           onClose={() => dispatch({ type: 'closeDialog' })}
           onSubmit={(draft) => {
             try {
-              dispatch({ type: 'applyProject', project: applyDraft(project, draft) })
+              const next = applyDraft(project, draft)
+              dispatch({ type: 'applyProject', project: next })
               dispatch({ type: 'closeDialog' })
+              // An add appends; an edit does not. Only a genuinely new bar bursts in.
+              const added = next.events.length > project.events.length
+              setJustCreatedEventId(added ? next.events[next.events.length - 1].id : null)
             } catch (error) {
               dispatch({ type: 'error', message: error instanceof Error ? error.message : 'That event could not be saved.' })
             }
